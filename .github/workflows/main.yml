@@ -14,7 +14,8 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
       - name: Compile with Maven
-        run: mvn compile
+        working-directory: backend
+        run: mvn --batch-mode compile
       - name: Build Docker Image
         run: docker build -t devopsimage .
       - name: Run image
