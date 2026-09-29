@@ -12,7 +12,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Set up JDK 17
+      - name: Set up JDK 25
         uses: actions/setup-java@v5
         with:
           java-version: '25'
@@ -20,6 +20,15 @@ jobs:
 
       - name: Compile with Maven
         run: mvn --batch-mode compile
+
+      - name: Build JAR
+        run: mvn clean package
+
+      - name: Upload JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: application-jar
+          path: target/*.jar
 
       - name: Build Docker Image
         run: docker build -t devopsimage .
