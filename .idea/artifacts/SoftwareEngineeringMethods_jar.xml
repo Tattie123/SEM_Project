@@ -1,0 +1,11 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="SoftwareEngineeringMethods:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/SoftwareEngineeringMethods_jar</output-path>
+    <root id="archive" name="SoftwareEngineeringMethods.jar">
+      <element id="directory" name="META-INF">
+        <element id="file-copy" path="$PROJECT_DIR$/META-INF/MANIFEST.MF" />
+      </element>
+      <element id="module-output" name="SoftwareEngineeringMethods" />
+    </root>
+  </artifact>
+</component>
