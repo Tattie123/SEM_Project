@@ -21,18 +21,19 @@ public class Main {
         System.out.println(city.district);
         System.out.println(city.population);
     }
+
     public static List<City> getAllCitiesWorldwide(Connection connection) throws SQLException {
         List<City> cities = new ArrayList<>();
 
         String sql = """
-            SELECT city.Name,
-                   country.Name AS Country,
-                   city.District,
-                   city.Population
-            FROM city
-            JOIN country ON city.CountryCode = country.Code
-            ORDER BY city.Population DESC
-            """;
+                SELECT city.Name,
+                       country.Name AS Country,
+                       city.District,
+                       city.Population
+                FROM city
+                JOIN country ON city.CountryCode = country.Code
+                ORDER BY city.Population DESC
+                """;
 
         try (PreparedStatement statement = connection.prepareStatement(sql);
              ResultSet resultSet = statement.executeQuery()) {
@@ -51,20 +52,21 @@ public class Main {
 
         return cities;
     }
+
     public static List<City> getTopCitiesByDistrict(Connection connection, String district, int n) throws SQLException {
         List<City> cities = new ArrayList<>();
 
         String sql = """
-            SELECT city.Name,
-                   country.Name AS Country,
-                   city.District,
-                   city.Population
-            FROM city
-            JOIN country ON city.CountryCode = country.Code
-            WHERE city.District = ?
-            ORDER BY city.Population DESC
-            LIMIT ?
-            """;
+                SELECT city.Name,
+                       country.Name AS Country,
+                       city.District,
+                       city.Population
+                FROM city
+                JOIN country ON city.CountryCode = country.Code
+                WHERE city.District = ?
+                ORDER BY city.Population DESC
+                LIMIT ?
+                """;
 
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, district);
@@ -85,5 +87,30 @@ public class Main {
         }
 
         return cities;
+    }
+
+    public static double[] getChineseSpeakers(Connection connection) throws SQLException {
+        String sql = """
+                SELECT
+                    SUM(country.Population * (countrylanguage.Percentage / 100)) AS Speakers,
+                    (SUM(country.Population * (countrylanguage.Percentage / 100))
+                     / SUM(country.Population)) * 100 AS WorldPercentage
+                FROM countrylanguage
+                JOIN country ON countrylanguage.CountryCode = country.Code
+                WHERE countrylanguage.Language = 'Chinese'
+                """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql);
+             ResultSet resultSet = statement.executeQuery()) {
+
+            if (resultSet.next()) {
+                double speakers = resultSet.getDouble("Speakers");
+                double percentage = resultSet.getDouble("WorldPercentage");
+
+                return new double[]{speakers, percentage};
+            }
+        }
+
+        return new double[]{0, 0};
     }
 }
