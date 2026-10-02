@@ -113,4 +113,28 @@ public class Main {
 
         return new double[]{0, 0};
     }
+    public static double[] getEnglishSpeakers(Connection connection) throws SQLException {
+        String sql = """
+            SELECT
+                SUM(country.Population * (countrylanguage.Percentage / 100)) AS Speakers,
+                (SUM(country.Population * (countrylanguage.Percentage / 100))
+                 / SUM(country.Population)) * 100 AS WorldPercentage
+            FROM countrylanguage
+            JOIN country ON countrylanguage.CountryCode = country.Code
+            WHERE countrylanguage.Language = 'English'
+            """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql);
+             ResultSet resultSet = statement.executeQuery()) {
+
+            if (resultSet.next()) {
+                double speakers = resultSet.getDouble("Speakers");
+                double percentage = resultSet.getDouble("WorldPercentage");
+
+                return new double[]{speakers, percentage};
+            }
+        }
+
+        return new double[]{0, 0};
+    }
 }
