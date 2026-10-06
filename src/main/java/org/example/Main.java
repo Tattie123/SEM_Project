@@ -1,5 +1,7 @@
 package org.example;
 
+import org.example.db.DatabaseConnectionManager;
+
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -9,17 +11,11 @@ import java.util.List;
 
 public class Main {
     public static void main(String[] args) {
-        City city = new City();
-
-        city.name = "Glasgow";
-        city.country = "United Kingdom";
-        city.district = "Scotland";
-        city.population = 635130;
-
-        System.out.println(city.name);
-        System.out.println(city.country);
-        System.out.println(city.district);
-        System.out.println(city.population);
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            System.out.println("Successfully connected to MySQL!");
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
     public static List<City> getAllCitiesWorldwide(Connection connection) throws SQLException {
@@ -53,7 +49,9 @@ public class Main {
         return cities;
     }
 
-    public static List<City> getTopCitiesByDistrict(Connection connection, String district, int n) throws SQLException {
+    public static List<City> getTopCitiesByDistrict(
+            Connection connection, String district, int n) throws SQLException {
+
         List<City> cities = new ArrayList<>();
 
         String sql = """
@@ -113,16 +111,17 @@ public class Main {
 
         return new double[]{0, 0};
     }
+
     public static double[] getEnglishSpeakers(Connection connection) throws SQLException {
         String sql = """
-            SELECT
-                SUM(country.Population * (countrylanguage.Percentage / 100)) AS Speakers,
-                (SUM(country.Population * (countrylanguage.Percentage / 100))
-                 / SUM(country.Population)) * 100 AS WorldPercentage
-            FROM countrylanguage
-            JOIN country ON countrylanguage.CountryCode = country.Code
-            WHERE countrylanguage.Language = 'English'
-            """;
+                SELECT
+                    SUM(country.Population * (countrylanguage.Percentage / 100)) AS Speakers,
+                    (SUM(country.Population * (countrylanguage.Percentage / 100))
+                     / SUM(country.Population)) * 100 AS WorldPercentage
+                FROM countrylanguage
+                JOIN country ON countrylanguage.CountryCode = country.Code
+                WHERE countrylanguage.Language = 'English'
+                """;
 
         try (PreparedStatement statement = connection.prepareStatement(sql);
              ResultSet resultSet = statement.executeQuery()) {
