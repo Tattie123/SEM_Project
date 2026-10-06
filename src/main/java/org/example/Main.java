@@ -12,13 +12,24 @@ import java.util.List;
 public class Main {
     public static void main(String[] args) {
         try (Connection connection = DatabaseConnectionManager.connect()) {
-            System.out.println("Successfully connected to MySQL!");
+            double[] chinese = getChineseSpeakers(connection);
+            double[] english = getEnglishSpeakers(connection);
+
+            System.out.printf(
+                    "Chinese: %.0f speakers | %.2f%% of world population%n",
+                    chinese[0], chinese[1]);
+
+            System.out.printf(
+                    "English: %.0f speakers | %.2f%% of world population%n",
+                    english[0], english[1]);
         } catch (SQLException e) {
             e.printStackTrace();
         }
     }
 
-    public static List<City> getAllCitiesWorldwide(Connection connection) throws SQLException {
+    public static List<City> getAllCitiesWorldwide(Connection connection)
+            throws SQLException {
+
         List<City> cities = new ArrayList<>();
 
         String sql = """
@@ -51,6 +62,10 @@ public class Main {
 
     public static List<City> getTopCitiesByDistrict(
             Connection connection, String district, int n) throws SQLException {
+
+        if (n <= 0) {
+            throw new IllegalArgumentException("N must be greater than zero.");
+        }
 
         List<City> cities = new ArrayList<>();
 
@@ -87,12 +102,17 @@ public class Main {
         return cities;
     }
 
-    public static double[] getChineseSpeakers(Connection connection) throws SQLException {
+    public static double[] getChineseSpeakers(Connection connection)
+            throws SQLException {
+
         String sql = """
                 SELECT
-                    SUM(country.Population * (countrylanguage.Percentage / 100)) AS Speakers,
-                    (SUM(country.Population * (countrylanguage.Percentage / 100))
-                     / SUM(country.Population)) * 100 AS WorldPercentage
+                    COALESCE(SUM(country.Population *
+                        (countrylanguage.Percentage / 100.0)), 0) AS Speakers,
+                    (COALESCE(SUM(country.Population *
+                        (countrylanguage.Percentage / 100.0)), 0)
+                     / NULLIF((SELECT SUM(Population) FROM country), 0))
+                     * 100.0 AS WorldPercentage
                 FROM countrylanguage
                 JOIN country ON countrylanguage.CountryCode = country.Code
                 WHERE countrylanguage.Language = 'Chinese'
@@ -112,12 +132,17 @@ public class Main {
         return new double[]{0, 0};
     }
 
-    public static double[] getEnglishSpeakers(Connection connection) throws SQLException {
+    public static double[] getEnglishSpeakers(Connection connection)
+            throws SQLException {
+
         String sql = """
                 SELECT
-                    SUM(country.Population * (countrylanguage.Percentage / 100)) AS Speakers,
-                    (SUM(country.Population * (countrylanguage.Percentage / 100))
-                     / SUM(country.Population)) * 100 AS WorldPercentage
+                    COALESCE(SUM(country.Population *
+                        (countrylanguage.Percentage / 100.0)), 0) AS Speakers,
+                    (COALESCE(SUM(country.Population *
+                        (countrylanguage.Percentage / 100.0)), 0)
+                     / NULLIF((SELECT SUM(Population) FROM country), 0))
+                     * 100.0 AS WorldPercentage
                 FROM countrylanguage
                 JOIN country ON countrylanguage.CountryCode = country.Code
                 WHERE countrylanguage.Language = 'English'
