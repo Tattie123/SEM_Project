@@ -1,0 +1,20 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: software-engineering-mysql
+    restart: unless-stopped
+
+    environment:
+      MYSQL_ROOT_PASSWORD: MyRootPassword2026!
+      MYSQL_DATABASE: software_engineering_methods
+      MYSQL_USER: software_app
+      MYSQL_PASSWORD: MyAppPassword2026!
+
+    ports:
+      - "3306:3306"
+
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+volumes:
+  mysql_data:
