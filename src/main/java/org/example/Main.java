@@ -10,7 +10,7 @@ public class Main {
         try (Connection connection = DatabaseConnectionManager.connect()) {
             System.out.println("Successfully connected to MySQL!");
         } catch (Exception e) {
-            System.out.println();
+
             e.printStackTrace();
         }
 
