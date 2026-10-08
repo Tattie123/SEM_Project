@@ -179,14 +179,17 @@ public class Main {
         return new double[]{0, 0};
     }
 
+    // To show the top N countries in a selected region
     public static void printTopCountriesByRegion(
             Connection connection, String region, int n) throws SQLException {
 
+        //stop if the number is 0 or negative
         if (n <= 0) {
             System.out.println("enter a number greater than 0: ");
             return;
         }
 
+        //retrieves the information from the database, ordered by population
         String sql = """
                 SELECT country.Code, country.Name, country.Continent,
                             country.region, country.population,
@@ -196,22 +199,21 @@ public class Main {
                         WHERE country.Region = ?
                         ORDER BY country.Population DESC, country.Code
                         LIMIT ?
-                        """;
-                try(PreparedStatement statement = connection.prepareStatement(sql
-            )) {
-            statement.setString(1, region);
+                """;
+                try(PreparedStatement statement = connection.prepareStatement(sql)) {
+                    //user choice
+                    statement.setString(1, region);
                     statement.setInt(2, n);
 
-                    try(ResultSet results =
-                statement.executeQuery()) {
-                        System.out.
-                println("Top " + n + " countries in " + region);
-                        System.
+                    //run query / read the results
+                    try(ResultSet results = statement.executeQuery()) {
+                        System.out.println("Top " + n + " countries in " + region);
+                        System.out.println("Code | Name | Continent | Region | Population | Capital");
 
-                out.println("Code | Name | Continent | Region | Population | Capital");
-
+                        //ensures query contains a country
                         boolean found = false;
 
+                        //row for each country
                         while (results.next()) {
                             found = true;
 
@@ -224,8 +226,9 @@ public class Main {
                                     results.getString("Capital"));
                         }
 
+                        //error message if no countries match
                         if (!found) {
-                            System.out.println("No countries found for this region");
+                            System.out.println("no countries found for this region");
                         }
 
                     }
