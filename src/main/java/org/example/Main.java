@@ -1,7 +1,7 @@
 package org.example;
 
 import org.example.db.DatabaseConnectionManager;
-
+import java.util.Scanner;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -12,7 +12,22 @@ import java.util.List;
 public class Main {
     public static void main(String[] args) {
         try (Connection connection = DatabaseConnectionManager.connect()) {
-            printTopCountriesByRegion(connection, "Western Europe", 5);
+            // Ask the user for the region and number of countries.
+            Scanner scanner = new Scanner(System.in);
+
+            System.out.print("Enter a region: ");
+            String region = scanner.nextLine().trim();
+
+            System.out.print("Enter the number of countries: ");
+
+            if (!scanner.hasNextInt()) {
+                System.out.println("Please enter a whole number.");
+                return;
+            }
+
+            int n = scanner.nextInt();
+
+            printTopCountriesByRegion(connection, region, n);
             double[] chinese = getChineseSpeakers(connection);
             double[] english = getEnglishSpeakers(connection);
 
@@ -193,9 +208,7 @@ public class Main {
                 println("Top " + n + " countries in " + region);
                         System.
 
-                out.println(
-
-                "Code | Naulation | Capital");
+                out.println("Code | Name | Continent | Region | Population | Capital");
 
                         boolean found = false;
 
