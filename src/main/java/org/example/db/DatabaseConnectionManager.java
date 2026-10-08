@@ -10,7 +10,7 @@ public class DatabaseConnectionManager {
 
     public static Connection connect() throws SQLException {
 
-        String url = "jdbc:mysql://localhost:3306/software_engineering_methods";
+        String url = "jdbc:mysql://localhost:3306/world";
 
         return DriverManager.getConnection(url, "software_app", "MyAppPassword2026!");
     }
