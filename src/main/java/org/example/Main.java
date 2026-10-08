@@ -12,6 +12,7 @@ import java.util.List;
 public class Main {
     public static void main(String[] args) {
         try (Connection connection = DatabaseConnectionManager.connect()) {
+            printTopCountriesByRegion(connection, "Western Europe", 5);
             double[] chinese = getChineseSpeakers(connection);
             double[] english = getEnglishSpeakers(connection);
 
@@ -157,8 +158,64 @@ public class Main {
 
                 return new double[]{speakers, percentage};
             }
+
         }
 
         return new double[]{0, 0};
     }
+
+    public static void printTopCountriesByRegion(
+            Connection connection, String region, int n) throws SQLException {
+
+        if (n <= 0) {
+            System.out.println("enter a number greater than 0: ");
+            return;
+        }
+
+        String sql = """
+                SELECT country.Code, country.Name, country.Continent,
+                            country.region, country.population,
+                            city.Name AS Capital
+                        FROM country
+                        LEFT JOIN city ON country.Capital = city.ID
+                        WHERE country.Region = ?
+                        ORDER BY country.Population DESC, country.Code
+                        LIMIT ?
+                        """;
+                try(PreparedStatement statement = connection.prepareStatement(sql
+            )) {
+            statement.setString(1, region);
+                    statement.setInt(2, n);
+
+                    try(ResultSet results =
+                statement.executeQuery()) {
+                        System.out.
+                println("Top " + n + " countries in " + region);
+                        System.
+
+                out.println(
+
+                "Code | Naulation | Capital");
+
+                        boolean found = false;
+
+                        while (results.next()) {
+                            found = true;
+
+                            System.out.println(
+                                    results.getString("Code") + " | " +
+                                    results.getString("Name") + " | " +
+                                    results.getString("Continent") + " | " +
+                                    results.getString("Region") + " | " +
+                                    results.getString("Population") + " | " +
+                                    results.getString("Capital"));
+                        }
+
+                        if (!found) {
+                            System.out.println("No countries found for this region");
+                        }
+
+                    }
+                }
+            }
 }
