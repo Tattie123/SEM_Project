@@ -76,3 +76,5 @@ jobs:
       - name: Stop MySQL
         if: always()
         run: docker compose down
+      - name: View Docker Logs
+        run: docker logs devopscontainer -f
