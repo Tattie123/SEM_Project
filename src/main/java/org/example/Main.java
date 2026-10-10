@@ -1,7 +1,7 @@
 package org.example;
 
 import org.example.db.DatabaseConnectionManager;
-
+import java.util.Scanner;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -12,6 +12,22 @@ import java.util.List;
 public class Main {
     public static void main(String[] args) {
         try (Connection connection = DatabaseConnectionManager.connect()) {
+            // Ask the user for the region and number of countries.
+            Scanner scanner = new Scanner(System.in);
+
+            System.out.print("Enter a region: ");
+            String region = scanner.nextLine().trim();
+
+            System.out.print("Enter the number of countries: ");
+
+            if (!scanner.hasNextInt()) {
+                System.out.println("Please enter a whole number.");
+                return;
+            }
+
+            int n = scanner.nextInt();
+
+            printTopCountriesByRegion(connection, region, n);
             double[] chinese = getChineseSpeakers(connection);
             double[] english = getEnglishSpeakers(connection);
 
@@ -157,8 +173,65 @@ public class Main {
 
                 return new double[]{speakers, percentage};
             }
+
         }
 
         return new double[]{0, 0};
     }
+
+    // To show the top N countries in a selected region
+    public static void printTopCountriesByRegion(
+            Connection connection, String region, int n) throws SQLException {
+
+        //stop if the number is 0 or negative
+        if (n <= 0) {
+            System.out.println("enter a number greater than 0: ");
+            return;
+        }
+
+        //retrieves the information from the database, ordered by population
+        String sql = """
+                SELECT country.Code, country.Name, country.Continent,
+                            country.region, country.population,
+                            city.Name AS Capital
+                        FROM country
+                        LEFT JOIN city ON country.Capital = city.ID
+                        WHERE country.Region = ?
+                        ORDER BY country.Population DESC, country.Code
+                        LIMIT ?
+                """;
+                try(PreparedStatement statement = connection.prepareStatement(sql)) {
+                    //user choice
+                    statement.setString(1, region);
+                    statement.setInt(2, n);
+
+                    //run query / read the results
+                    try(ResultSet results = statement.executeQuery()) {
+                        System.out.println("Top " + n + " countries in " + region);
+                        System.out.println("Code | Name | Continent | Region | Population | Capital");
+
+                        //ensures query contains a country
+                        boolean found = false;
+
+                        //row for each country
+                        while (results.next()) {
+                            found = true;
+
+                            System.out.println(
+                                    results.getString("Code") + " | " +
+                                    results.getString("Name") + " | " +
+                                    results.getString("Continent") + " | " +
+                                    results.getString("Region") + " | " +
+                                    results.getString("Population") + " | " +
+                                    results.getString("Capital"));
+                        }
+
+                        //error message if no countries match
+                        if (!found) {
+                            System.out.println("no countries found for this region");
+                        }
+
+                    }
+                }
+            }
 }

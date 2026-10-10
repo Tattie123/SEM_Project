@@ -71,7 +71,7 @@ jobs:
         run: docker build -t devopsimage .
 
       - name: Run application
-        run: docker run --rm --network host devopsimage
+        run: printf 'Western Europe\n5\n' | docker run --rm -i --network host devopsimage
 
       - name: Stop MySQL
         if: always()
