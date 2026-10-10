@@ -12,6 +12,8 @@ import java.util.List;
 public class Main {
     public static void main(String[] args) {
         try (Connection connection = DatabaseConnectionManager.connect()) {
+            System.out.printf("World population: %d%n", getWorldPopulation(connection));
+
             // Ask the user for the region and number of countries.
             Scanner scanner = new Scanner(System.in);
 
@@ -41,6 +43,25 @@ public class Main {
         } catch (SQLException e) {
             e.printStackTrace();
         }
+    }
+
+    public static long getWorldPopulation(Connection connection)
+            throws SQLException {
+
+        String sql = """
+                SELECT COALESCE(SUM(Population), 0) AS WorldPopulation
+                FROM country
+                """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql);
+             ResultSet resultSet = statement.executeQuery()) {
+
+            if (resultSet.next()) {
+                return resultSet.getLong("WorldPopulation");
+            }
+        }
+
+        return 0L;
     }
 
     public static List<City> getAllCitiesWorldwide(Connection connection)

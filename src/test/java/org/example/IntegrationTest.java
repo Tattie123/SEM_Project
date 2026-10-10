@@ -14,6 +14,14 @@ import static org.junit.jupiter.api.Assertions.*;
 public class IntegrationTest {
 
     @Test
+    void worldPopulationIncludesAllCountriesWithoutIntegerOverflow()
+            throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            assertEquals(6078749450L, Main.getWorldPopulation(connection));
+        }
+    }
+
+    @Test
     void allCitiesAreReturnedInPopulationOrder() throws SQLException {
         try (Connection connection = DatabaseConnectionManager.connect()) {
             List<City> cities = Main.getAllCitiesWorldwide(connection);
