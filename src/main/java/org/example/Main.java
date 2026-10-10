@@ -14,9 +14,14 @@ public class Main {
         try (Connection connection = DatabaseConnectionManager.connect()) {
             System.out.printf("World population: %d%n", getWorldPopulation(connection));
 
-            // Ask the user for the region and number of countries.
             Scanner scanner = new Scanner(System.in);
 
+            System.out.print("Enter a continent: ");
+            String continent = scanner.nextLine().trim();
+            System.out.printf("Population of %s: %d%n",
+                    continent, getContinentPopulation(connection, continent));
+
+            // Ask the user for the region and number of countries.
             System.out.print("Enter a region: ");
             String region = scanner.nextLine().trim();
 
@@ -58,6 +63,28 @@ public class Main {
 
             if (resultSet.next()) {
                 return resultSet.getLong("WorldPopulation");
+            }
+        }
+
+        return 0L;
+    }
+
+    public static long getContinentPopulation(
+            Connection connection, String continent) throws SQLException {
+
+        String sql = """
+                SELECT COALESCE(SUM(Population), 0) AS ContinentPopulation
+                FROM country
+                WHERE Continent = ?
+                """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, continent);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    return resultSet.getLong("ContinentPopulation");
+                }
             }
         }
 

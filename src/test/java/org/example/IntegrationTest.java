@@ -2,6 +2,9 @@ package org.example;
 
 import org.example.db.DatabaseConnectionManager;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -18,6 +21,32 @@ public class IntegrationTest {
             throws SQLException {
         try (Connection connection = DatabaseConnectionManager.connect()) {
             assertEquals(6078749450L, Main.getWorldPopulation(connection));
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "Africa, 784475000",
+            "Antarctica, 0",
+            "Asia, 3705025700",
+            "Europe, 730074600",
+            "North America, 482993000",
+            "Oceania, 30401150",
+            "South America, 345780000"
+    })
+    void continentPopulationIncludesOnlyTheSelectedContinent(
+            String continent, long expectedPopulation) throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            assertEquals(expectedPopulation,
+                    Main.getContinentPopulation(connection, continent));
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ContinentThatDoesNotExist", "Asia' OR '1'='1"})
+    void unknownContinentReturnsZero(String continent) throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            assertEquals(0L, Main.getContinentPopulation(connection, continent));
         }
     }
 
