@@ -7,6 +7,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class Main {
@@ -82,7 +83,16 @@ public class Main {
                 System.out.printf(
                         "Hindi: %.0f speakers | %.2f%% of world population%n",
                         hindi[0], hindi[1]);
+
+                double[] arabic = getArabicSpeakers(connection);
+
+                System.out.printf(
+                        "Arabic: %.0f speakers | %.2f%% of world population%n",
+                        arabic[0], arabic[1]);
             });
+
+            ErrorHandler.runSafely("ranked language report", () ->
+                    printLanguagesRanked(connection));
         } catch (SQLException e) {
             ErrorHandler.handleSQLException(e, "connecting to the database");
             // e.printStackTrace();
@@ -361,6 +371,62 @@ public class Main {
         }
 
         return new double[]{0, 0};
+    }
+
+    public static double[] getArabicSpeakers(Connection connection)
+            throws SQLException {
+
+        String sql = """
+                SELECT
+                    COALESCE(SUM(country.Population *
+                        (countrylanguage.Percentage / 100.0)), 0) AS Speakers,
+                    (COALESCE(SUM(country.Population *
+                        (countrylanguage.Percentage / 100.0)), 0)
+                     / NULLIF((SELECT SUM(Population) FROM country), 0))
+                     * 100.0 AS WorldPercentage
+                FROM countrylanguage
+                JOIN country ON countrylanguage.CountryCode = country.Code
+                WHERE countrylanguage.Language = 'Arabic'
+                """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql);
+             ResultSet resultSet = statement.executeQuery()) {
+
+            if (resultSet.next()) {
+                double speakers = resultSet.getDouble("Speakers");
+                double percentage = resultSet.getDouble("WorldPercentage");
+
+                return new double[]{speakers, percentage};
+            }
+        }
+
+        return new double[]{0, 0};
+    }
+
+    // Chinese, English, Hindi, Spanish and Arabic ranked by speakers (largest first)
+    public static void printLanguagesRanked(Connection connection)
+            throws SQLException {
+
+        String[] names = {"Chinese", "English", "Hindi", "Spanish", "Arabic"};
+        double[][] results = {
+                getChineseSpeakers(connection),
+                getEnglishSpeakers(connection),
+                getHindiSpeakers(connection),
+                getSpanishSpeakers(connection),
+                getArabicSpeakers(connection)
+        };
+
+        // order[] holds the positions 0-4, sorted by speakers descending
+        Integer[] order = {0, 1, 2, 3, 4};
+        Arrays.sort(order, (a, b) -> Double.compare(results[b][0], results[a][0]));
+
+        System.out.println("Languages ranked by number of speakers:");
+        System.out.printf("%-10s %18s %12s%n", "Language", "Speakers", "% of world");
+
+        for (int i : order) {
+            System.out.printf("%-10s %,18.0f %11.2f%%%n",
+                    names[i], results[i][0], results[i][1]);
+        }
     }
 
     // To show the top N countries in a selected region
