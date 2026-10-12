@@ -72,6 +72,31 @@ public class IntegrationTest {
         }
     }
 
+
+    @Test
+    void citiesByContinentAreReturnedInPopulationOrder() throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            List<City> cities =
+                    Main.getCitiesByContinent(connection, "Europe");
+
+            assertFalse(cities.isEmpty());
+
+            for (City city : cities) {
+                assertNotNull(city.name);
+                assertNotNull(city.country);
+                assertNotNull(city.district);
+                assertTrue(city.population >= 0);
+            }
+
+            for (int i = 1; i < cities.size(); i++) {
+                assertTrue(
+                        cities.get(i - 1).population >= cities.get(i).population,
+                        "Cities in Europe must be sorted by population descending"
+                );
+            }
+        }
+    }
+
     @Test
     void topTwoCitiesInScotlandAreReturned() throws SQLException {
         try (Connection connection = DatabaseConnectionManager.connect()) {
