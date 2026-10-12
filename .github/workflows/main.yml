@@ -71,10 +71,8 @@ jobs:
         run: docker build -t devopsimage .
 
       - name: Run application
-        run: printf 'Western Europe\n5\n' | docker run --rm -i --network host devopsimage
+        run: printf 'Europe\nWestern Europe\n5\n' | docker run --rm -i --network host devopsimage
 
       - name: Stop MySQL
         if: always()
         run: docker compose down
-      - name: View Docker Logs
-        run: docker logs devopscontainer -f
