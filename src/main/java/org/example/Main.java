@@ -9,19 +9,22 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
+/** Runs the population reports against the configured World database. */
 public class Main {
     public static void main(String[] args) {
+        // Keep one connection open while the interactive reports are generated.
         try (Connection connection = DatabaseConnectionManager.connect()) {
             System.out.printf("World population: %d%n", getWorldPopulation(connection));
 
             Scanner scanner = new Scanner(System.in);
 
+            // Read the continent report selection.
             System.out.print("Enter a continent: ");
             String continent = scanner.nextLine().trim();
             System.out.printf("Population of %s: %d%n",
                     continent, getContinentPopulation(connection, continent));
 
-            // Ask the user for the region and number of countries.
+            // Read and validate the inputs for the regional country report.
             System.out.print("Enter a region: ");
             String region = scanner.nextLine().trim();
 
@@ -34,6 +37,7 @@ public class Main {
 
             int n = scanner.nextInt();
 
+            // Print the selected region's countries and worldwide language totals.
             printTopCountriesByRegion(connection, region, n);
             double[] chinese = getChineseSpeakers(connection);
             double[] english = getEnglishSpeakers(connection);
@@ -50,9 +54,11 @@ public class Main {
         }
     }
 
+    /** Returns the sum of the population values for all countries. */
     public static long getWorldPopulation(Connection connection)
             throws SQLException {
 
+        // COALESCE returns zero if the table has no population values.
         String sql = """
                 SELECT COALESCE(SUM(Population), 0) AS WorldPopulation
                 FROM country
@@ -69,6 +75,7 @@ public class Main {
         return 0L;
     }
 
+    /** Returns the population total for the selected continent. */
     public static long getContinentPopulation(
             Connection connection, String continent) throws SQLException {
 
@@ -78,6 +85,7 @@ public class Main {
                 WHERE Continent = ?
                 """;
 
+        // Bind the user's selection rather than inserting it into the SQL text.
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, continent);
 
@@ -91,6 +99,7 @@ public class Main {
         return 0L;
     }
 
+    /** Loads every city with its country name, ordered from largest to smallest. */
     public static List<City> getAllCitiesWorldwide(Connection connection)
             throws SQLException {
 
@@ -106,6 +115,7 @@ public class Main {
                 ORDER BY city.Population DESC
                 """;
 
+        // Map each result row to a City object; try-with-resources closes JDBC objects.
         try (PreparedStatement statement = connection.prepareStatement(sql);
              ResultSet resultSet = statement.executeQuery()) {
 
@@ -124,9 +134,11 @@ public class Main {
         return cities;
     }
 
+    /** Returns at most {@code n} cities in the requested district. */
     public static List<City> getTopCitiesByDistrict(
             Connection connection, String district, int n) throws SQLException {
 
+        // Reject invalid limits before sending a query to the database.
         if (n <= 0) {
             throw new IllegalArgumentException("N must be greater than zero.");
         }
@@ -145,6 +157,7 @@ public class Main {
                 LIMIT ?
                 """;
 
+        // Both the district filter and result limit are supplied as parameters.
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, district);
             statement.setInt(2, n);
@@ -166,9 +179,11 @@ public class Main {
         return cities;
     }
 
+    /** Returns estimated Chinese speakers and their percentage of world population. */
     public static double[] getChineseSpeakers(Connection connection)
             throws SQLException {
 
+        // Weight each country's population by the language's reported percentage.
         String sql = """
                 SELECT
                     COALESCE(SUM(country.Population *
@@ -196,9 +211,12 @@ public class Main {
         return new double[]{0, 0};
     }
 
+    /** Returns estimated English speakers and their percentage of world population. */
     public static double[] getEnglishSpeakers(Connection connection)
             throws SQLException {
 
+        // The subquery denominator is the population of all countries, not just
+        // countries where English is spoken.
         String sql = """
                 SELECT
                     COALESCE(SUM(country.Population *
@@ -227,17 +245,17 @@ public class Main {
         return new double[]{0, 0};
     }
 
-    // To show the top N countries in a selected region
+    /** Prints up to {@code n} countries in a region, ordered by population. */
     public static void printTopCountriesByRegion(
             Connection connection, String region, int n) throws SQLException {
 
-        //stop if the number is 0 or negative
+        // A non-positive limit cannot produce a meaningful top-N report.
         if (n <= 0) {
             System.out.println("enter a number greater than 0: ");
             return;
         }
 
-        //retrieves the information from the database, ordered by population
+        // LEFT JOIN keeps countries in the report even when no capital is listed.
         String sql = """
                 SELECT country.Code, country.Name, country.Continent,
                             country.region, country.population,
@@ -249,19 +267,17 @@ public class Main {
                         LIMIT ?
                 """;
                 try(PreparedStatement statement = connection.prepareStatement(sql)) {
-                    //user choice
+                    // Bind the chosen region and maximum number of rows.
                     statement.setString(1, region);
                     statement.setInt(2, n);
 
-                    //run query / read the results
                     try(ResultSet results = statement.executeQuery()) {
                         System.out.println("Top " + n + " countries in " + region);
                         System.out.println("Code | Name | Continent | Region | Population | Capital");
 
-                        //ensures query contains a country
+                        // Track whether the query returned a matching country.
                         boolean found = false;
 
-                        //row for each country
                         while (results.next()) {
                             found = true;
 
@@ -274,7 +290,7 @@ public class Main {
                                     results.getString("Capital"));
                         }
 
-                        //error message if no countries match
+                        // Give a clear message for a region with no matching rows.
                         if (!found) {
                             System.out.println("no countries found for this region");
                         }

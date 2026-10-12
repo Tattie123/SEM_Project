@@ -14,8 +14,10 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/** Integration checks for the population queries using the World database. */
 public class IntegrationTest {
 
+    // Verify the aggregate uses a long value for the total population.
     @Test
     void worldPopulationIncludesAllCountriesWithoutIntegerOverflow()
             throws SQLException {
@@ -24,6 +26,7 @@ public class IntegrationTest {
         }
     }
 
+    // Check known totals across continents, including the empty Antarctica total.
     @ParameterizedTest
     @CsvSource({
             "Africa, 784475000",
@@ -42,6 +45,7 @@ public class IntegrationTest {
         }
     }
 
+    // Unknown input should return zero and SQL-like input must remain a value.
     @ParameterizedTest
     @ValueSource(strings = {"ContinentThatDoesNotExist", "Asia' OR '1'='1"})
     void unknownContinentReturnsZero(String continent) throws SQLException {
@@ -50,6 +54,7 @@ public class IntegrationTest {
         }
     }
 
+    // Check returned city details and descending population order.
     @Test
     void allCitiesAreReturnedInPopulationOrder() throws SQLException {
         try (Connection connection = DatabaseConnectionManager.connect()) {
@@ -72,6 +77,7 @@ public class IntegrationTest {
         }
     }
 
+    // Confirm both the requested limit and the expected top two cities.
     @Test
     void topTwoCitiesInScotlandAreReturned() throws SQLException {
         try (Connection connection = DatabaseConnectionManager.connect()) {
@@ -93,6 +99,7 @@ public class IntegrationTest {
         }
     }
 
+    // A limit larger than the matching set returns all available cities.
     @Test
     void requestingFiveReturnsFourWhenOnlyFourExist() throws SQLException {
         try (Connection connection = DatabaseConnectionManager.connect()) {
@@ -105,6 +112,7 @@ public class IntegrationTest {
         }
     }
 
+    // A district without matching rows should produce an empty list.
     @Test
     void unknownDistrictReturnsNoCities() throws SQLException {
         try (Connection connection = DatabaseConnectionManager.connect()) {
@@ -115,6 +123,7 @@ public class IntegrationTest {
         }
     }
 
+    // Validate both the estimated count and its share of the whole population.
     @Test
     void chineseSpeakersUseTheWholeWorldPopulation() throws SQLException {
         try (Connection connection = DatabaseConnectionManager.connect()) {
@@ -131,6 +140,7 @@ public class IntegrationTest {
         }
     }
 
+    // The percentage denominator must include every country's population.
     @Test
     void englishSpeakersUseTheWholeWorldPopulation() throws SQLException {
         try (Connection connection = DatabaseConnectionManager.connect()) {
@@ -147,6 +157,7 @@ public class IntegrationTest {
         }
     }
 
+    // Read the independent database total used to verify language percentages.
     private double getWorldPopulation(Connection connection)
             throws SQLException {
 
