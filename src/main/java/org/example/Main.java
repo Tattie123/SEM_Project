@@ -11,45 +11,86 @@ import java.util.List;
 
 public class Main {
     public static void main(String[] args) {
+        if (args.length > 1 || (args.length == 1 && !args[0].equals("--all-cities"))) {
+            System.err.println("Usage: java -jar app.jar [--all-cities]");
+            System.exit(2);
+        }
         try (Connection connection = DatabaseConnectionManager.connect()) {
-            System.out.printf("World population: %d%n", getWorldPopulation(connection));
-
-            Scanner scanner = new Scanner(System.in);
-
-            System.out.print("Enter a continent: ");
-            String continent = scanner.nextLine().trim();
-            System.out.printf("Population of %s: %d%n",
-                    continent, getContinentPopulation(connection, continent));
-
-            // Ask the user for the region and number of countries.
-            System.out.print("Enter a region: ");
-            String region = scanner.nextLine().trim();
-
-            System.out.print("Enter the number of countries: ");
-
-            if (!scanner.hasNextInt()) {
-                System.out.println("Please enter a whole number.");
-                return;
+            int status = runReports(connection, new Scanner(System.in), System.out,
+                    args.length == 1);
+            if (status != 0) {
+                System.exit(status);
             }
-
-            int n = scanner.nextInt();
-
-            printTopCountriesByRegion(connection, region, n);
-            double[] chinese = getChineseSpeakers(connection);
-            double[] english = getEnglishSpeakers(connection);
-
-            System.out.printf(
-                    "Chinese: %.0f speakers | %.2f%% of world population%n",
-                    chinese[0], chinese[1]);
-
-            System.out.printf(
-                    "English: %.0f speakers | %.2f%% of world population%n",
-                    english[0], english[1]);
         } catch (SQLException e) {
-            e.printStackTrace();
+            System.err.println("Unable to run reports: " + e.getMessage());
+            System.exit(1);
         }
     }
 
+    public static int runReports(Connection connection, Scanner scanner,
+                                 java.io.PrintStream output, boolean citiesOnly)
+            throws SQLException {
+        printAllCitiesWorldwide(connection, output);
+        if (citiesOnly) {
+            return 0;
+        }
+        output.printf("World population: %d%n", getWorldPopulation(connection));
+        output.print("Enter a continent: ");
+        if (!scanner.hasNextLine()) {
+            output.println("Please enter a continent.");
+            return 2;
+        }
+        String continent = scanner.nextLine().trim();
+        if (continent.isEmpty()) {
+            output.println("Please enter a continent.");
+            return 2;
+        }
+        output.printf("Population of %s: %d%n",
+                continent, getContinentPopulation(connection, continent));
+        output.print("Enter a region: ");
+        if (!scanner.hasNextLine()) {
+            output.println("Please enter a region.");
+            return 2;
+        }
+        String region = scanner.nextLine().trim();
+        if (region.isEmpty()) {
+            output.println("Please enter a region.");
+            return 2;
+        }
+        output.print("Enter the number of countries: ");
+        if (!scanner.hasNextInt()) {
+            output.println("Please enter a whole number.");
+            return 2;
+        }
+        int n = scanner.nextInt();
+        if (n <= 0) {
+            output.println("Please enter a number greater than zero.");
+            return 2;
+        }
+        printTopCountriesByRegion(connection, region, n, output);
+        double[] chinese = getChineseSpeakers(connection);
+        double[] english = getEnglishSpeakers(connection);
+        output.printf("Chinese: %.0f speakers | %.2f%% of world population%n",
+                chinese[0], chinese[1]);
+        output.printf("English: %.0f speakers | %.2f%% of world population%n",
+                english[0], english[1]);
+        return 0;
+    }
+
+    public static void printAllCitiesWorldwide(Connection connection,
+                                               java.io.PrintStream output)
+            throws SQLException {
+        List<City> cities = getAllCitiesWorldwide(connection);
+        output.println("All cities worldwide");
+        output.println("Name | Country | District | Population");
+        if (cities.isEmpty()) {
+            output.println("No cities found.");
+        }
+        for (City city : cities) {
+            output.printf("%s | %s | %s | %d%n",
+                    city.name, city.country, city.district, city.population);
+        }
+    }
     public static long getWorldPopulation(Connection connection)
             throws SQLException {
 
@@ -103,7 +144,7 @@ public class Main {
                        city.Population
                 FROM city
                 JOIN country ON city.CountryCode = country.Code
-                ORDER BY city.Population DESC
+                ORDER BY city.Population DESC, city.ID
                 """;
 
         try (PreparedStatement statement = connection.prepareStatement(sql);
@@ -141,7 +182,7 @@ public class Main {
                 FROM city
                 JOIN country ON city.CountryCode = country.Code
                 WHERE city.District = ?
-                ORDER BY city.Population DESC
+                ORDER BY city.Population DESC, city.ID
                 LIMIT ?
                 """;
 
@@ -231,9 +272,15 @@ public class Main {
     public static void printTopCountriesByRegion(
             Connection connection, String region, int n) throws SQLException {
 
+        printTopCountriesByRegion(connection, region, n, System.out);
+    }
+
+    public static void printTopCountriesByRegion(
+            Connection connection, String region, int n, java.io.PrintStream output)
+            throws SQLException {
         //stop if the number is 0 or negative
         if (n <= 0) {
-            System.out.println("enter a number greater than 0: ");
+            output.println("enter a number greater than 0: ");
             return;
         }
 
@@ -255,8 +302,8 @@ public class Main {
 
                     //run query / read the results
                     try(ResultSet results = statement.executeQuery()) {
-                        System.out.println("Top " + n + " countries in " + region);
-                        System.out.println("Code | Name | Continent | Region | Population | Capital");
+                        output.println("Top " + n + " countries in " + region);
+                        output.println("Code | Name | Continent | Region | Population | Capital");
 
                         //ensures query contains a country
                         boolean found = false;
@@ -265,7 +312,7 @@ public class Main {
                         while (results.next()) {
                             found = true;
 
-                            System.out.println(
+                            output.println(
                                     results.getString("Code") + " | " +
                                     results.getString("Name") + " | " +
                                     results.getString("Continent") + " | " +
@@ -276,7 +323,7 @@ public class Main {
 
                         //error message if no countries match
                         if (!found) {
-                            System.out.println("no countries found for this region");
+                            output.println("no countries found for this region");
                         }
 
                     }
