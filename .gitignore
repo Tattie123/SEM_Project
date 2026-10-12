@@ -25,3 +25,10 @@ replay_pid*
 
 #.env file
 .env
+.maven-cache/
+target/
+cities-output.txt
+application-output.txt
+invalid-input.txt
+database-failure.txt
+compose-logs.txt
