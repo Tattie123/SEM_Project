@@ -12,25 +12,34 @@ import java.util.List;
 public class Main {
     public static void main(String[] args) {
         try (Connection connection = DatabaseConnectionManager.connect()) {
-            System.out.printf("World population: %d%n", getWorldPopulation(connection));
+            try {
+                System.out.printf("World population: %d%n", getWorldPopulation(connection));
+            } catch (SQLException e) {
+                InputHandler.handleSQLException(e, "getting the world population");
+            }
 
             Scanner scanner = new Scanner(System.in);
 
             System.out.print("Enter a continent: ");
             String continent = scanner.nextLine().trim();
-            System.out.printf("Population of %s: %d%n",
-                    continent, getContinentPopulation(connection, continent));
-            // Get and display cities in the selected continent
-            List<City> cities = getCitiesByContinent(connection, continent);
 
-            if (cities.isEmpty()) {
-                System.out.println("No cities found for continent: " + continent); }
-            else {
-                System.out.println("Cities in " + continent + " (population descending):");
-                System.out.printf("%-25s %-30s %-20s %12s%n", "City", "Country", "District", "Population");
+            try {
+                System.out.printf("Population of %s: %d%n",
+                        continent, getContinentPopulation(connection, continent));
+                // Get and display cities in the selected continent
+                List<City> cities = getCitiesByContinent(connection, continent);
 
-                for (City city : cities) {
-                    System.out.printf("%-25s %-30s %-20s %,12d%n", city.name, city.country, city.district, city.population); }
+                if (cities.isEmpty()) {
+                    System.out.println("No cities found for continent: " + continent); }
+                else {
+                    System.out.println("Cities in " + continent + " (population descending):");
+                    System.out.printf("%-25s %-30s %-20s %12s%n", "City", "Country", "District", "Population");
+
+                    for (City city : cities) {
+                        System.out.printf("%-25s %-30s %-20s %,12d%n", city.name, city.country, city.district, city.population); }
+                }
+            } catch (SQLException e) {
+                InputHandler.handleSQLException(e, "getting the continent reports");
             }
 
             // Ask the user for the region and number of countries.
@@ -46,19 +55,29 @@ public class Main {
 
             int n = scanner.nextInt();
 
-            printTopCountriesByRegion(connection, region, n);
-            double[] chinese = getChineseSpeakers(connection);
-            double[] english = getEnglishSpeakers(connection);
+            try {
+                printTopCountriesByRegion(connection, region, n);
+            } catch (SQLException e) {
+                InputHandler.handleSQLException(e, "getting the top countries");
+            }
 
-            System.out.printf(
-                    "Chinese: %.0f speakers | %.2f%% of world population%n",
-                    chinese[0], chinese[1]);
+            try {
+                double[] chinese = getChineseSpeakers(connection);
+                double[] english = getEnglishSpeakers(connection);
 
-            System.out.printf(
-                    "English: %.0f speakers | %.2f%% of world population%n",
-                    english[0], english[1]);
+                System.out.printf(
+                        "Chinese: %.0f speakers | %.2f%% of world population%n",
+                        chinese[0], chinese[1]);
+
+                System.out.printf(
+                        "English: %.0f speakers | %.2f%% of world population%n",
+                        english[0], english[1]);
+            } catch (SQLException e) {
+                InputHandler.handleSQLException(e, "getting the language report");
+            }
         } catch (SQLException e) {
-            e.printStackTrace();
+            InputHandler.handleSQLException(e, "connecting to the database");
+            // e.printStackTrace();
         }
     }
 
