@@ -72,6 +72,64 @@ public class IntegrationTest {
         }
     }
 
+
+    @Test
+    void citiesByContinentAreReturnedInPopulationOrder() throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            List<City> cities =
+                    Main.getCitiesByContinent(connection, "Europe");
+
+            assertFalse(cities.isEmpty());
+            assertEquals("Moscow", cities.get(0).name);
+            assertEquals("Russian Federation", cities.get(0).country);
+            assertEquals(8389200, cities.get(0).population);
+
+            java.util.Set<String> europeanCountries = new java.util.HashSet<>();
+            try (Statement statement = connection.createStatement();
+                 ResultSet countries = statement.executeQuery(
+                         "SELECT Name FROM country WHERE Continent = 'Europe'")) {
+                while (countries.next()) {
+                    europeanCountries.add(countries.getString("Name"));
+                }
+            }
+
+            for (City city : cities) {
+                assertNotNull(city.name);
+                assertNotNull(city.country);
+                assertNotNull(city.district);
+                assertTrue(city.population >= 0);
+                assertTrue(europeanCountries.contains(city.country),
+                        "Continent report must contain only European countries");
+            }
+
+            for (int i = 1; i < cities.size(); i++) {
+                assertTrue(
+                        cities.get(i - 1).population >= cities.get(i).population,
+                        "Cities in Europe must be sorted by population descending"
+                );
+            }
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"Antarctica", "ContinentThatDoesNotExist", "Asia' OR '1'='1"})
+    void emptyOrUnknownContinentReturnsNoCities(String continent) throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            assertTrue(Main.getCitiesByContinent(connection, continent).isEmpty());
+        }
+    }
+
+    @Test
+    void continentWithNoCitiesDisplaysAnExplicitMessage() throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+            assertEquals(0, Main.runReports(connection,
+                    new java.util.Scanner("Antarctica\nWestern Europe\n2\n"),
+                    new java.io.PrintStream(bytes), false));
+            assertTrue(bytes.toString().contains("No cities found for continent: Antarctica"));
+        }
+    }
+
     @Test
     void topTwoCitiesInScotlandAreReturned() throws SQLException {
         try (Connection connection = DatabaseConnectionManager.connect()) {
@@ -173,6 +231,12 @@ public class IntegrationTest {
             assertEquals(0, status);
             assertTrue(output.contains("World population: 6078749450"));
             assertTrue(output.contains("Population of Europe: 730074600"));
+            String continentReport = output.substring(output.indexOf("Cities in Europe"),
+                    output.indexOf("Enter a region:"));
+            assertTrue(continentReport.contains("Name | Country | District | Population"));
+            assertTrue(continentReport.contains(
+                    "Moscow | Russian Federation | Moscow (City) | 8389200"));
+            assertFalse(continentReport.contains("Mumbai (Bombay)"));
             assertTrue(output.contains("DEU | Germany | Europe | Western Europe | 82164700 | Berlin"));
             assertTrue(output.contains("FRA | France | Europe | Western Europe | 59225700 | Paris"));
             assertFalse(output.contains("AUT | Austria"));
