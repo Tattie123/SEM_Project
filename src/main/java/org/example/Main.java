@@ -12,69 +12,53 @@ import java.util.List;
 public class Main {
     public static void main(String[] args) {
         try (Connection connection = DatabaseConnectionManager.connect()) {
-            ErrorHandler.runSafely("world population", () ->
-                    System.out.printf("World population: %d%n", getWorldPopulation(connection)));
+            System.out.printf("World population: %d%n", getWorldPopulation(connection));
 
             Scanner scanner = new Scanner(System.in);
 
-            // System.out.print("Enter a continent: ");
-            // String continent = scanner.nextLine().trim();
-            String continent = InputVal.readContinent(scanner, connection);
+            System.out.print("Enter a continent: ");
+            String continent = scanner.nextLine().trim();
+            System.out.printf("Population of %s: %d%n",
+                    continent, getContinentPopulation(connection, continent));
+            // Get and display cities in the selected continent
+            List<City> cities = getCitiesByContinent(connection, continent);
 
-            if (continent != null) {
-                ErrorHandler.runSafely("continent reports", () -> {
-                    System.out.printf("Population of %s: %d%n",
-                            continent, getContinentPopulation(connection, continent));
-                    // Get and display cities in the selected continent
-                    List<City> cities = getCitiesByContinent(connection, continent);
+            if (cities.isEmpty()) {
+                System.out.println("No cities found for continent: " + continent); }
+            else {
+                System.out.println("Cities in " + continent + " (population descending):");
+                System.out.printf("%-25s %-30s %-20s %12s%n", "City", "Country", "District", "Population");
 
-                    if (cities.isEmpty()) {
-                        System.out.println("No cities found for continent: " + continent); }
-                    else {
-                        System.out.println("Cities in " + continent + " (population descending):");
-                        System.out.printf("%-25s %-30s %-20s %12s%n", "City", "Country", "District", "Population");
-
-                        for (City city : cities) {
-                            System.out.printf("%-25s %-30s %-20s %,12d%n", city.name, city.country, city.district, city.population); }
-                    }
-                });
+                for (City city : cities) {
+                    System.out.printf("%-25s %-30s %-20s %,12d%n", city.name, city.country, city.district, city.population); }
             }
 
             // Ask the user for the region and number of countries.
-            // System.out.print("Enter a region: ");
-            // String region = scanner.nextLine().trim();
-            String region = InputVal.readRegion(scanner, connection);
+            System.out.print("Enter a region: ");
+            String region = scanner.nextLine().trim();
 
-            // System.out.print("Enter the number of countries: ");
-            //
-            // if (!scanner.hasNextInt()) {
-            //     System.out.println("Please enter a whole number.");
-            //     return;
-            // }
-            //
-            // int n = scanner.nextInt();
-            Integer n = InputVal.readPositiveInt(scanner, "Enter the number of countries: ");
+            System.out.print("Enter the number of countries: ");
 
-            if (region != null && n != null) {
-                ErrorHandler.runSafely("top countries", () ->
-                        printTopCountriesByRegion(connection, region, n));
+            if (!scanner.hasNextInt()) {
+                System.out.println("Please enter a whole number.");
+                return;
             }
 
-            ErrorHandler.runSafely("language report", () -> {
-                double[] chinese = getChineseSpeakers(connection);
-                double[] english = getEnglishSpeakers(connection);
+            int n = scanner.nextInt();
 
-                System.out.printf(
-                        "Chinese: %.0f speakers | %.2f%% of world population%n",
-                        chinese[0], chinese[1]);
+            printTopCountriesByRegion(connection, region, n);
+            double[] chinese = getChineseSpeakers(connection);
+            double[] english = getEnglishSpeakers(connection);
 
-                System.out.printf(
-                        "English: %.0f speakers | %.2f%% of world population%n",
-                        english[0], english[1]);
-            });
+            System.out.printf(
+                    "Chinese: %.0f speakers | %.2f%% of world population%n",
+                    chinese[0], chinese[1]);
+
+            System.out.printf(
+                    "English: %.0f speakers | %.2f%% of world population%n",
+                    english[0], english[1]);
         } catch (SQLException e) {
-            ErrorHandler.handleSQLException(e, "connecting to the database");
-            // e.printStackTrace();
+            e.printStackTrace();
         }
     }
 
@@ -348,4 +332,3 @@ public class Main {
                 }
             }
 }
-
