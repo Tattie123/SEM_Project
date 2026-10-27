@@ -382,6 +382,14 @@ public class Main {
     public static void printTopCountriesByContinent(
             Connection connection, String continent, int n)
             throws SQLException {
-
+        string sql = """
+                SELECT country.Code, country.Name, country.Continent,
+                       country.Region, country.Population,
+                       city.Name AS Capital
+                FROM country
+                LEFT JOIN city ON country.Capital = city.ID
+                WHERE country.Continent = ?
+                LIMIT ?
+                """;
     }
 }
