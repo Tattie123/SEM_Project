@@ -421,4 +421,41 @@ public class Main {
             }
         }
     }
+
+    // Displays the top N countries in the world
+    public static void printTopCountriesWorldwide(
+            Connection connection, int n) throws SQLException {
+
+        String sql = """
+            SELECT country.Code, country.Name, country.Continent,
+                   country.Region, country.Population,
+                   city.Name AS Capital
+            FROM country
+            LEFT JOIN city ON country.Capital = city.ID
+            ORDER BY country.Population DESC, country.Code
+            LIMIT ?
+            """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setInt(1, n);
+
+            try (ResultSet results = statement.executeQuery()) {
+
+                System.out.println("Top " + n + " countries in the world");
+                System.out.println("Code | Name | Continent | Region | Population | Capital");
+
+                while (results.next()) {
+                    System.out.println(
+                            results.getString("Code") + " | " +
+                                    results.getString("Name") + " | " +
+                                    results.getString("Continent") + " | " +
+                                    results.getString("Region") + " | " +
+                                    results.getString("Population") + " | " +
+                                    results.getString("Capital"));
+                }
+            }
+        }
+    }
+
 }
