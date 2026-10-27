@@ -77,6 +77,7 @@ public class Main {
         if (n <= 0) {
             output.println("Please enter a number greater than zero.");
             printTopCountriesByContinent(connection, continent, n);
+            printTopCountriesWorldwide(connection, n);
             return 2;
         }
         printTopCountriesByRegion(connection, region, n, output);
