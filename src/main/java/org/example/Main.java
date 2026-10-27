@@ -76,6 +76,7 @@ public class Main {
         int n = scanner.nextInt();
         if (n <= 0) {
             output.println("Please enter a number greater than zero.");
+            printTopCountriesByContinent(connection, continent, n);
             return 2;
         }
         printTopCountriesByRegion(connection, region, n, output);
@@ -411,7 +412,7 @@ public class Main {
                 while (results.next()) {
                     System.out.println(
                             results.getString("Code") + " | " +
-                            results.getString("Name") + " | " +
+                            results.getString("name") + " | " +
                             results.getString("Continent") + " | " +
                             results.getString("Region") + " | " +
                             results.getString("Population") + " | " +
