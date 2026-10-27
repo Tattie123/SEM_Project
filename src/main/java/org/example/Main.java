@@ -377,4 +377,11 @@ public class Main {
                     }
                 }
             }
+
+    // Displays the top N countries in a continent
+    public static void printTopCountriesByContinent(
+            Connection connection, String continent, int n)
+            throws SQLException {
+
+    }
 }
