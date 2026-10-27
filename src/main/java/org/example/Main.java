@@ -382,6 +382,12 @@ public class Main {
     public static void printTopCountriesByContinent(
             Connection connection, String continent, int n)
             throws SQLException {
+
+        if (n <= 0) {
+            System.out.println("enter a number greater than 0");
+            return;
+        }
+
         String sql = """
                 SELECT country.Code, country.Name, country.Continent,
                        country.Region, country.Population,
