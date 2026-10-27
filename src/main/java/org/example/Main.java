@@ -382,7 +382,7 @@ public class Main {
     public static void printTopCountriesByContinent(
             Connection connection, String continent, int n)
             throws SQLException {
-        string sql = """
+        String sql = """
                 SELECT country.Code, country.Name, country.Continent,
                        country.Region, country.Population,
                        city.Name AS Capital
@@ -391,5 +391,27 @@ public class Main {
                 WHERE country.Continent = ?
                 LIMIT ?
                 """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setString(1, continent);
+            statement.setInt(2, n);
+
+            try(ResultSet results = statement.executeQuery()) {
+
+                System.out.println("Top " + n + " countries in" + continent);
+                System.out.println("Code | Name | Continent | Region | Population | Capital");
+
+                while (results.next()) {
+                    System.out.println(
+                            results.getString("Code") + " | " +
+                            results.getString("Name") + " | " +
+                            results.getString("Continent") + " | " +
+                            results.getString("Region") + " | " +
+                            results.getString("Population") + " | " +
+                            results.getString("Capital"));
+                }
+            }
+        }
     }
 }
