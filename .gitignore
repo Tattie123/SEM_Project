@@ -23,6 +23,14 @@
 hs_err_pid*
 replay_pid*
 
+# mac metadata
+.DS_Store
+
+# IntelliJ build output and local database settings
+out/
+.idea/dataSources.xml
+.idea/data_source_mapping.xml
+
 #.env file
 .env
 .maven-cache/

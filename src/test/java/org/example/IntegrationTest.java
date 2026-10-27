@@ -299,6 +299,7 @@ public class IntegrationTest {
     void emptyCityDataDisplaysAnExplicitMessage() throws SQLException {
         try (Connection connection = DatabaseConnectionManager.connect();
              Statement statement = connection.createStatement()) {
+            // Connection uses the empty temporary table instead of the real city table
             statement.execute("""
                     CREATE TEMPORARY TABLE city (
                         ID INT, Name VARCHAR(100), CountryCode CHAR(3),

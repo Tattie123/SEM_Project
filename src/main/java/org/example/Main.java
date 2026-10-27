@@ -1,6 +1,8 @@
 package org.example;
 
 import org.example.db.DatabaseConnectionManager;
+
+import java.io.PrintStream;
 import java.util.Scanner;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -9,7 +11,17 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Runs the world population and city reports
+ */
 public class Main {
+
+    /**
+     * Checks args and connects to the database
+     * <br>
+     * Starts {@link #runReports(Connection, Scanner, PrintStream, boolean)}
+     * @param args optional --all-cities flag
+     */
     public static void main(String[] args) {
         if (args.length > 1 || (args.length == 1 && !args[0].equals("--all-cities"))) {
             System.err.println("Usage: java -jar app.jar [--all-cities]");
@@ -27,6 +39,17 @@ public class Main {
         }
     }
 
+    /**
+     * Prints reports using the user's choices
+     * <br>
+     * Stops after the city report when citiesOnly is true
+     * @param connection open database connection
+     * @param scanner user input
+     * @param output report output
+     * @param citiesOnly whether to print only the worldwide city report
+     * @return 0 on success, or 2 for missing or invalid input
+     * @throws SQLException if a database query fails
+     */
     public static int runReports(Connection connection, Scanner scanner,
                                  java.io.PrintStream output, boolean citiesOnly)
             throws SQLException {
@@ -88,6 +111,12 @@ public class Main {
         return 0;
     }
 
+    /**
+     * Prints all cities from largest to smallest population
+     * @param connection open database connection
+     * @param output report output
+     * @throws SQLException if a database query fails
+     */
     public static void printAllCitiesWorldwide(Connection connection,
                                                java.io.PrintStream output)
             throws SQLException {
@@ -102,6 +131,13 @@ public class Main {
                     city.name, city.country, city.district, city.population);
         }
     }
+
+    /**
+     * Gets the total population of all countries
+     * @param connection open database connection
+     * @return world population, or zero if there are no countries
+     * @throws SQLException if a database query fails
+     */
     public static long getWorldPopulation(Connection connection)
             throws SQLException {
 
@@ -121,6 +157,13 @@ public class Main {
         return 0L;
     }
 
+    /**
+     * Gets the total population of a continent
+     * @param connection open database connection
+     * @param continent continent name
+     * @return continent population, or zero if no countries match
+     * @throws SQLException if a database query fails
+     */
     public static long getContinentPopulation(
             Connection connection, String continent) throws SQLException {
 
@@ -143,11 +186,18 @@ public class Main {
         return 0L;
     }
 
+    /**
+     * Gets all cities from largest to smallest population
+     * @param connection open database connection
+     * @return cities with their country names
+     * @throws SQLException if a database query fails
+     */
     public static List<City> getAllCitiesWorldwide(Connection connection)
             throws SQLException {
 
         List<City> cities = new ArrayList<>();
 
+        // City ID keeps the order consistent when populations match.
         String sql = """
                 SELECT city.Name,
                        country.Name AS Country,
@@ -176,6 +226,15 @@ public class Main {
         return cities;
     }
 
+    /**
+     * Gets the most populated cities in a district
+     * @param connection open database connection
+     * @param district district name
+     * @param n maximum number of cities
+     * @return matching cities from largest to smallest population
+     * @throws IllegalArgumentException if n is zero or negative
+     * @throws SQLException if a database query fails
+     */
     public static List<City> getTopCitiesByDistrict(
             Connection connection, String district, int n) throws SQLException {
 
@@ -219,6 +278,13 @@ public class Main {
     }
 
 
+    /**
+     * Gets cities in a continent from largest to smallest population
+     * @param connection open database connection
+     * @param continent continent name
+     * @return matching cities with their country names
+     * @throws SQLException if a database query fails
+     */
     public static List<City> getCitiesByContinent(
             Connection connection, String continent) throws SQLException {
 
@@ -255,9 +321,17 @@ public class Main {
         return cities;
     }
 
+    /**
+     * Estimates Chinese speakers and their share of the world population
+     * @param connection open database connection
+     * @return speaker count at index 0 and world percentage at index 1
+     * @throws SQLException if a database query fails
+     */
     public static double[] getChineseSpeakers(Connection connection)
             throws SQLException {
 
+        // Multiply each country's population by its language percentage then add
+        // NULLIF avoids division by zero
         String sql = """
                 SELECT
                     COALESCE(SUM(country.Population *
@@ -285,9 +359,16 @@ public class Main {
         return new double[]{0, 0};
     }
 
+    /**
+     * Estimates English speakers and their share of the world population
+     * @param connection open database connection
+     * @return speaker count at index 0 and world percentage at index 1
+     * @throws SQLException if a database query fails
+     */
     public static double[] getEnglishSpeakers(Connection connection)
             throws SQLException {
 
+        // Use all countries for the world total including those without English speakers
         String sql = """
                 SELECT
                     COALESCE(SUM(country.Population *
@@ -316,13 +397,29 @@ public class Main {
         return new double[]{0, 0};
     }
 
-    // To show the top N countries in a selected region
+    /**
+     * Prints the most populated countries in a region to the console
+     * @param connection open database connection
+     * @param region region name
+     * @param n maximum number of countries
+     * @throws SQLException if a database query fails
+     */
     public static void printTopCountriesByRegion(
             Connection connection, String region, int n) throws SQLException {
 
         printTopCountriesByRegion(connection, region, n, System.out);
     }
 
+    /**
+     * Prints the most populated countries in a region
+     * <br>
+     * Prints a message if n is invalid or no countries match
+     * @param connection open database connection
+     * @param region region name
+     * @param n maximum number of countries
+     * @param output report output
+     * @throws SQLException if a database query fails
+     */
     public static void printTopCountriesByRegion(
             Connection connection, String region, int n, java.io.PrintStream output)
             throws SQLException {
