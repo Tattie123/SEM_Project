@@ -1,0 +1,88 @@
+name: SEM integration and deployment checks
+
+on:
+  push:
+  pull_request:
+    branches: [develop, main]
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          java-version: '25'
+          distribution: temurin
+          cache: maven
+
+      - name: Start and initialize MySQL
+        run: docker compose up -d --wait --wait-timeout 300 mysql
+
+      - name: Run integration tests and build executable JAR
+        run: mvn --batch-mode clean verify
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: target/surefire-reports/
+          if-no-files-found: error
+
+      - name: Upload executable JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: application-jar
+          path: target/SoftwareEngineeringMethods-1.0-SNAPSHOT.jar
+
+      - name: Build application container
+        run: docker compose build app
+
+      - name: Verify standalone worldwide report
+        run: |
+          docker compose run --rm -T app --all-cities > cities-output.txt
+          grep -Fx 'Name | Country | District | Population' cities-output.txt
+          test "$(wc -l < cities-output.txt)" -eq 4081
+
+      - name: Verify integrated application
+        run: |
+          printf 'Europe\nWestern Europe\n5\n' | docker compose run --rm -T app > application-output.txt
+          grep -F 'Population of Europe: 730074600' application-output.txt
+          grep -F 'Chinese:' application-output.txt
+          grep -F 'English:' application-output.txt
+
+      - name: Reject invalid user input
+        run: |
+          if printf 'Europe\nWestern Europe\ninvalid\n' | docker compose run --rm -T app > invalid-input.txt; then
+            echo "Invalid input unexpectedly succeeded"
+            exit 1
+          fi
+          grep -F 'Please enter a whole number.' invalid-input.txt
+
+      - name: Reject database failures
+        run: |
+          if docker compose run --rm -T -e DB_URL=jdbc:mysql://mysql:3306/missing app --all-cities > database-failure.txt 2>&1; then
+            echo "Missing database unexpectedly succeeded"
+            exit 1
+          fi
+          grep -F 'Unable to run reports:' database-failure.txt
+      - name: Capture deployment evidence
+        if: always()
+        run: docker compose logs > compose-logs.txt
+
+      - name: Upload deployment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-evidence
+          path: |
+            *-output.txt
+            invalid-input.txt
+            database-failure.txt
+            compose-logs.txt
+
+      - name: Stop test database
+        if: always()
+        run: docker compose down

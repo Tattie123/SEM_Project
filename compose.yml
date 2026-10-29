@@ -1,0 +1,33 @@
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: MyRootPassword2026!
+      MYSQL_DATABASE: world
+      MYSQL_USER: software_app
+      MYSQL_PASSWORD: MyAppPassword2026!
+    ports:
+      - "${DB_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./src/main/java/org/example/db/world.sql:/docker-entrypoint-initdb.d/01-world.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=$$MYSQL_PASSWORD mysql -u $$MYSQL_USER world -e 'SELECT COUNT(*) FROM city'"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 20s
+
+  app:
+    build: .
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/world
+      DB_USER: software_app
+      DB_PASSWORD: MyAppPassword2026!
+    depends_on:
+      mysql:
+        condition: service_healthy
+    stdin_open: true
+
+volumes:
+  mysql_data:
