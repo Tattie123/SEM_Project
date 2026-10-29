@@ -77,6 +77,64 @@ public class IntegrationTest {
         }
     }
 
+
+    @Test
+    void citiesByContinentAreReturnedInPopulationOrder() throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            List<City> cities =
+                    Main.getCitiesByContinent(connection, "Europe");
+
+            assertFalse(cities.isEmpty());
+            assertEquals("Moscow", cities.get(0).name);
+            assertEquals("Russian Federation", cities.get(0).country);
+            assertEquals(8389200, cities.get(0).population);
+
+            java.util.Set<String> europeanCountries = new java.util.HashSet<>();
+            try (Statement statement = connection.createStatement();
+                 ResultSet countries = statement.executeQuery(
+                         "SELECT Name FROM country WHERE Continent = 'Europe'")) {
+                while (countries.next()) {
+                    europeanCountries.add(countries.getString("Name"));
+                }
+            }
+
+            for (City city : cities) {
+                assertNotNull(city.name);
+                assertNotNull(city.country);
+                assertNotNull(city.district);
+                assertTrue(city.population >= 0);
+                assertTrue(europeanCountries.contains(city.country),
+                        "Continent report must contain only European countries");
+            }
+
+            for (int i = 1; i < cities.size(); i++) {
+                assertTrue(
+                        cities.get(i - 1).population >= cities.get(i).population,
+                        "Cities in Europe must be sorted by population descending"
+                );
+            }
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"Antarctica", "ContinentThatDoesNotExist", "Asia' OR '1'='1"})
+    void emptyOrUnknownContinentReturnsNoCities(String continent) throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            assertTrue(Main.getCitiesByContinent(connection, continent).isEmpty());
+        }
+    }
+
+    @Test
+    void continentWithNoCitiesDisplaysAnExplicitMessage() throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+            assertEquals(0, Main.runReports(connection,
+                    new java.util.Scanner("Antarctica\nWestern Europe\n2\n"),
+                    new java.io.PrintStream(bytes), false));
+            assertTrue(bytes.toString().contains("No cities found for continent: Antarctica"));
+        }
+    }
+
     // Confirm both the requested limit and the expected top two cities.
     @Test
     void topTwoCitiesInScotlandAreReturned() throws SQLException {
@@ -157,6 +215,119 @@ public class IntegrationTest {
         }
     }
 
+    @Test
+    void worldwideReportDisplaysEveryCityWithAllFields() throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+            Main.printAllCitiesWorldwide(connection, new java.io.PrintStream(bytes));
+            String[] lines = bytes.toString(java.nio.charset.StandardCharsets.UTF_8).lines()
+                    .toArray(String[]::new);
+            assertEquals(4081, lines.length);
+            assertEquals("Name | Country | District | Population", lines[1]);
+            assertEquals("Mumbai (Bombay) | India | Maharashtra | 10500000", lines[2]);
+            assertTrue(lines[4080].startsWith("Adamstown | Pitcairn | "));
+            assertTrue(lines[4080].endsWith(" | 42"));
+        }
+    }
+
+    @Test
+    void reportsRunTogetherWithUserInput() throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+            int status = Main.runReports(connection,
+                    new java.util.Scanner("Europe\nWestern Europe\n2\n"),
+                    new java.io.PrintStream(bytes), false);
+            String output = bytes.toString(java.nio.charset.StandardCharsets.UTF_8);
+            assertEquals(0, status);
+            assertTrue(output.contains("World population: 6078749450"));
+            assertTrue(output.contains("Population of Europe: 730074600"));
+            String continentReport = output.substring(output.indexOf("Cities in Europe"),
+                    output.indexOf("Enter a region:"));
+            assertTrue(continentReport.contains("Name | Country | District | Population"));
+            assertTrue(continentReport.contains(
+                    "Moscow | Russian Federation | Moscow (City) | 8389200"));
+            assertFalse(continentReport.contains("Mumbai (Bombay)"));
+            assertTrue(output.contains("DEU | Germany | Europe | Western Europe | 82164700 | Berlin"));
+            assertTrue(output.contains("FRA | France | Europe | Western Europe | 59225700 | Paris"));
+            assertFalse(output.contains("AUT | Austria"));
+            assertTrue(output.contains("Chinese:"));
+            assertTrue(output.contains("English:"));
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "Europe\n", "Europe\n\n", "Europe\nWestern Europe\n",
+            "Europe\nWestern Europe\nabc\n", "Europe\nWestern Europe\n0\n",
+            "Europe\nWestern Europe\n-2\n"})
+    void invalidOrMissingUserInputReturnsFailure(String input) throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+            assertEquals(2, Main.runReports(connection, new java.util.Scanner(input),
+                    new java.io.PrintStream(bytes), false));
+            assertTrue(bytes.toString().contains("Please enter"));
+        }
+    }
+
+    @Test
+    void cityOnlyModeNeedsNoInteractiveInput() throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+            assertEquals(0, Main.runReports(connection, new java.util.Scanner(""),
+                    new java.io.PrintStream(bytes), true));
+            assertTrue(bytes.toString().contains("All cities worldwide"));
+            assertFalse(bytes.toString().contains("Enter a continent"));
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, -1})
+    void nonPositiveCityLimitIsRejected(int n) throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            assertThrows(IllegalArgumentException.class,
+                    () -> Main.getTopCitiesByDistrict(connection, "Scotland", n));
+        }
+    }
+
+    @Test
+    void districtInputCannotChangeTheQuery() throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            assertTrue(Main.getTopCitiesByDistrict(connection, "Scotland' OR '1'='1", 5)
+                    .isEmpty());
+        }
+    }
+
+    @Test
+    void unknownRegionDisplaysNoResultsMessage() throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+            Main.printTopCountriesByRegion(connection, "Unknown' OR '1'='1", 5,
+                    new java.io.PrintStream(bytes));
+            assertTrue(bytes.toString().contains("no countries found"));
+        }
+    }
+    @Test
+    void emptyCityDataDisplaysAnExplicitMessage() throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect();
+             Statement statement = connection.createStatement()) {
+            // Connection uses the empty temporary table instead of the real city table
+            statement.execute("""
+                    CREATE TEMPORARY TABLE city (
+                        ID INT, Name VARCHAR(100), CountryCode CHAR(3),
+                        District VARCHAR(100), Population INT)
+                    """);
+            java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+            Main.printAllCitiesWorldwide(connection, new java.io.PrintStream(bytes));
+            assertTrue(bytes.toString().contains("No cities found."));
+            assertEquals(3, bytes.toString().lines().count());
+        }
+    }
+
+    @Test
+    void reportDoesNotSilentlyIgnoreDatabaseFailure() throws SQLException {
+        Connection connection = DatabaseConnectionManager.connect();
+        connection.close();
+        assertThrows(SQLException.class, () -> Main.getAllCitiesWorldwide(connection));
+    }
     // Read the independent database total used to verify language percentages.
     private double getWorldPopulation(Connection connection)
             throws SQLException {
