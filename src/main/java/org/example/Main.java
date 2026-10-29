@@ -98,6 +98,7 @@ public class Main {
             return 2;
         }
         int n = scanner.nextInt();
+        scanner.nextLine();
         if (n <= 0) {
             output.println("Please enter a number greater than zero.");
             return 2;
@@ -110,6 +111,47 @@ public class Main {
                 chinese[0], chinese[1]);
         output.printf("English: %.0f speakers | %.2f%% of world population%n",
                 english[0], english[1]);
+        output.print("Would you like to see all capital cities? (yes/no): ");
+        if (!scanner.hasNextLine()) {
+            output.println("Please enter yes or no.");
+            return 2;
+        }
+
+        //Shows all the capital cities in the world
+        String showCapitals = scanner.nextLine().trim();
+        if (showCapitals.equalsIgnoreCase("yes") || showCapitals.equalsIgnoreCase("y")) {
+            allCapitals(connection, output);
+        } else if (!showCapitals.equalsIgnoreCase("no")
+                && !showCapitals.equalsIgnoreCase("n")) {
+            output.println("Please answer yes or no!");
+            return 2;
+        }
+
+        // Shows the capitals by the continent selected
+        output.print("\n\nWould you like to see capital cities by continent? (yes/no): ");
+        if (!scanner.hasNextLine()) {
+            output.println("Please enter yes or no.");
+            return 2;
+        }
+        String showCapitalsWithContinents = scanner.nextLine().trim();
+        if (showCapitalsWithContinents.equalsIgnoreCase("yes")
+                || showCapitalsWithContinents.equalsIgnoreCase("y")) {
+            output.print("Enter a continent for the capital report: ");
+            if (!scanner.hasNextLine()) {
+                output.println("Please enter a continent.");
+                return 2;
+            }
+            String capitalContinent = scanner.nextLine().trim();
+            if (capitalContinent.isEmpty()) {
+                output.println("Please enter a continent.");
+                return 2;
+            }
+            capitalsByContinent(connection, capitalContinent, output);
+        } else if (!showCapitalsWithContinents.equalsIgnoreCase("no")
+                && !showCapitalsWithContinents.equalsIgnoreCase("n")) {
+            output.println("Please enter yes or no.");
+            return 2;
+        }
         return 0;
     }
 
@@ -480,4 +522,63 @@ public class Main {
                     }
                 }
             }
+    public static void allCapitals(Connection connection, PrintStream output)
+            throws SQLException {
+        String sql = """
+                SELECT country.Name AS Country, city.Name AS Capital
+                FROM country
+                JOIN city ON country.Capital = city.ID
+                ORDER BY city.Population DESC, country.Name, country.Code;
+                """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql);
+             ResultSet results = statement.executeQuery()) {
+            output.println("Capital cities worldwide");
+            output.println("Country | Capital");
+
+            boolean found = false;
+            while (results.next()) {
+                found = true;
+                String capital = results.getString("Capital");
+                output.printf("%s | %s%n", results.getString("Country"),
+                        capital == null ? "No capital recorded" : capital);
+            }
+            if (!found) {
+                output.println("No countries found.");
+            }
+        }
+    }
+
+    public static void capitalsByContinent(Connection connection, String continent,
+                                           PrintStream output) throws SQLException {
+        String sql = """
+                SELECT country.Name AS Country,
+                       city.Name AS Capital,
+                       city.Population
+                FROM country
+                JOIN city ON country.Capital = city.ID
+                WHERE country.Continent = ?
+                ORDER BY city.Population DESC, country.Name, country.Code
+                """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, continent);
+            try (ResultSet results = statement.executeQuery()) {
+                output.println("Capital cities in " + continent + " (population descending)");
+                output.println("Country | Capital | Population");
+
+                boolean found = false;
+                while (results.next()) {
+                    found = true;
+                    output.printf("%s | %s | %d%n",
+                            results.getString("Country"),
+                            results.getString("Capital"),
+                            results.getInt("Population"));
+                }
+                if (!found) {
+                    output.println("No capitals found for continent: " + continent);
+                }
+            }
+        }
+    }
 }
