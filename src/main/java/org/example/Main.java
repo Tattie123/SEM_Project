@@ -112,6 +112,38 @@ public class Main {
                         city.district, city.population);
             }
         }
+
+        output.print("Enter a district: ");
+
+        if (!scanner.hasNextLine()) {
+            output.println("Please enter a district.");
+            return 2;
+        }
+
+        String district = scanner.nextLine().trim();
+
+        if (district.isEmpty()) {
+            output.println("Please enter a district.");
+            return 2;
+        }
+
+        List<City> districtCities =
+                getCitiesByDistrict(connection, district);
+
+        if (districtCities.isEmpty()) {
+            output.println("No cities found for district: " + district);
+        } else {
+            output.println("Cities in district " + district
+                    + " (population descending):");
+            output.println("Name | Country | District | Population");
+
+            for (City city : districtCities) {
+                output.printf("%s | %s | %s | %d%n",
+                        city.name, city.country,
+                        city.district, city.population);
+            }
+        }
+
         output.print("Enter a region: ");
         if (!scanner.hasNextLine()) {
             output.println("Please enter a region.");
@@ -403,6 +435,43 @@ public class Main {
 
         return cities;
     }
+
+
+    public static List<City> getCitiesByDistrict(
+            Connection connection, String district) throws SQLException {
+
+        List<City> cities = new ArrayList<>();
+
+        String sql = """
+            SELECT city.Name,
+                   country.Name AS Country,
+                   city.District,
+                   city.Population
+            FROM city
+            JOIN country ON city.CountryCode = country.Code
+            WHERE city.District = ?
+            ORDER BY city.Population DESC
+            """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, district);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    City city = new City();
+                    city.name = resultSet.getString("Name");
+                    city.country = resultSet.getString("Country");
+                    city.district = resultSet.getString("District");
+                    city.population = resultSet.getInt("Population");
+
+                    cities.add(city);
+                }
+            }
+        }
+
+        return cities;
+    }
+
 
     public static List<City> getCitiesByRegion(
             Connection connection, String region) throws SQLException {
