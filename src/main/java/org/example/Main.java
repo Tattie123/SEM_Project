@@ -87,6 +87,24 @@ public class Main {
             return 2;
         }
         String region = scanner.nextLine().trim();
+
+        List<City> regionCities = getCitiesByRegion(connection, region);
+
+        if (regionCities.isEmpty()) {
+            System.out.println("No cities found for region: " + region);
+        } else {
+            System.out.println("Cities in " + region
+                    + " (population descending):");
+
+            System.out.printf("%-25s %-30s %-20s %12s%n",
+                    "City", "Country", "District", "Population");
+
+            for (City city : regionCities) {
+                System.out.printf("%-25s %-30s %-20s %,12d%n",
+                        city.name, city.country, city.district, city.population);
+            }
+        }
+
         if (region.isEmpty()) {
             output.println("Please enter a region.");
             return 2;
@@ -303,6 +321,43 @@ public class Main {
 
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, continent);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    City city = new City();
+
+                    city.name = resultSet.getString("Name");
+                    city.country = resultSet.getString("Country");
+                    city.district = resultSet.getString("District");
+                    city.population = resultSet.getInt("Population");
+
+                    cities.add(city);
+                }
+            }
+        }
+
+        return cities;
+    }
+
+
+    public static List<City> getCitiesByRegion(
+            Connection connection, String region) throws SQLException {
+
+        List<City> cities = new ArrayList<>();
+
+        String sql = """
+            SELECT city.Name,
+                   country.Name AS Country,
+                   city.District,
+                   city.Population
+            FROM city
+            JOIN country ON city.CountryCode = country.Code
+            WHERE country.Region = ?
+            ORDER BY city.Population DESC
+            """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, region);
 
             try (ResultSet resultSet = statement.executeQuery()) {
                 while (resultSet.next()) {
