@@ -4,9 +4,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 
-/**
- * Opens connections to the world database
- */
+/** Creates JDBC connections for the application's configured MySQL database. */
 public class DatabaseConnectionManager {
 
     /**
@@ -18,6 +16,7 @@ public class DatabaseConnectionManager {
      */
     public static Connection connect() throws SQLException {
 
+        // Keep the database name in the URL so all queries use the same schema.
         String url = System.getenv().getOrDefault("DB_URL",
                 "jdbc:mysql://localhost:3306/world");
         String user = System.getenv().getOrDefault("DB_USER", "software_app");

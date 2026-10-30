@@ -14,8 +14,10 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/** Integration checks for the population queries using the World database. */
 public class IntegrationTest {
 
+    // Verify the aggregate uses a long value for the total population.
     @Test
     void worldPopulationIncludesAllCountriesWithoutIntegerOverflow()
             throws SQLException {
@@ -24,6 +26,7 @@ public class IntegrationTest {
         }
     }
 
+    // Check known totals across continents, including the empty Antarctica total.
     @ParameterizedTest
     @CsvSource({
             "Africa, 784475000",
@@ -42,6 +45,7 @@ public class IntegrationTest {
         }
     }
 
+    // Unknown input should return zero and SQL-like input must remain a value.
     @ParameterizedTest
     @ValueSource(strings = {"ContinentThatDoesNotExist", "Asia' OR '1'='1"})
     void unknownContinentReturnsZero(String continent) throws SQLException {
@@ -50,6 +54,7 @@ public class IntegrationTest {
         }
     }
 
+    // Check returned city details and descending population order.
     @Test
     void allCitiesAreReturnedInPopulationOrder() throws SQLException {
         try (Connection connection = DatabaseConnectionManager.connect()) {
@@ -124,12 +129,14 @@ public class IntegrationTest {
         try (Connection connection = DatabaseConnectionManager.connect()) {
             java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
             assertEquals(0, Main.runReports(connection,
-                    new java.util.Scanner("Antarctica\nWestern Europe\n2\n"),
+                    new java.util.Scanner(
+                            "Antarctica\nWestern Europe\n2\nno\nno\n"),
                     new java.io.PrintStream(bytes), false));
             assertTrue(bytes.toString().contains("No cities found for continent: Antarctica"));
         }
     }
 
+    // Confirm both the requested limit and the expected top two cities.
     @Test
     void topTwoCitiesInScotlandAreReturned() throws SQLException {
         try (Connection connection = DatabaseConnectionManager.connect()) {
@@ -151,6 +158,7 @@ public class IntegrationTest {
         }
     }
 
+    // A limit larger than the matching set returns all available cities.
     @Test
     void requestingFiveReturnsFourWhenOnlyFourExist() throws SQLException {
         try (Connection connection = DatabaseConnectionManager.connect()) {
@@ -163,6 +171,7 @@ public class IntegrationTest {
         }
     }
 
+    // A district without matching rows should produce an empty list.
     @Test
     void unknownDistrictReturnsNoCities() throws SQLException {
         try (Connection connection = DatabaseConnectionManager.connect()) {
@@ -173,6 +182,7 @@ public class IntegrationTest {
         }
     }
 
+    // Validate both the estimated count and its share of the whole population.
     @Test
     void chineseSpeakersUseTheWholeWorldPopulation() throws SQLException {
         try (Connection connection = DatabaseConnectionManager.connect()) {
@@ -189,6 +199,7 @@ public class IntegrationTest {
         }
     }
 
+    // The percentage denominator must include every country's population.
     @Test
     void englishSpeakersUseTheWholeWorldPopulation() throws SQLException {
         try (Connection connection = DatabaseConnectionManager.connect()) {
@@ -225,7 +236,8 @@ public class IntegrationTest {
         try (Connection connection = DatabaseConnectionManager.connect()) {
             java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
             int status = Main.runReports(connection,
-                    new java.util.Scanner("Europe\nWestern Europe\n2\n"),
+                    new java.util.Scanner(
+                            "Europe\nWestern Europe\n2\nyes\nyes\nSouth America\n"),
                     new java.io.PrintStream(bytes), false);
             String output = bytes.toString(java.nio.charset.StandardCharsets.UTF_8);
             assertEquals(0, status);
@@ -240,8 +252,59 @@ public class IntegrationTest {
             assertTrue(output.contains("DEU | Germany | Europe | Western Europe | 82164700 | Berlin"));
             assertTrue(output.contains("FRA | France | Europe | Western Europe | 59225700 | Paris"));
             assertFalse(output.contains("AUT | Austria"));
+            assertTrue(output.contains("Capital cities worldwide"));
+            assertTrue(output.contains("France | Paris"));
+            assertFalse(output.contains("Antarctica |"));
+            String regionalCapitals = output.substring(
+                    output.indexOf("Capital cities in South America"));
+            assertTrue(regionalCapitals.contains("Brazil |"));
+            assertFalse(regionalCapitals.contains("France |"));
+            String[] capitalRows = regionalCapitals.lines().skip(2).toArray(String[]::new);
+            int previousPopulation = Integer.MAX_VALUE;
+            for (String row : capitalRows) {
+                int population = Integer.parseInt(row.substring(row.lastIndexOf('|') + 1).trim());
+                assertTrue(population <= previousPopulation,
+                        "Continent capitals must be ordered by population descending");
+                previousPopulation = population;
+            }
             assertTrue(output.contains("Chinese:"));
             assertTrue(output.contains("English:"));
+        }
+    }
+
+    @Test
+    void capitalReportIsSkippedWhenUserDeclines() throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+            int status = Main.runReports(connection,
+                    new java.util.Scanner("Europe\nWestern Europe\n2\nno\nno\n"),
+                    new java.io.PrintStream(bytes), false);
+            String output = bytes.toString(java.nio.charset.StandardCharsets.UTF_8);
+
+            assertEquals(0, status);
+            assertTrue(output.contains("Would you like to see all capital cities?"));
+            assertTrue(output.contains("Would you like to see capital cities by continent?"));
+            assertFalse(output.contains("Capital cities worldwide"));
+            assertFalse(output.contains("Capital cities in "));
+        }
+    }
+
+    @Test
+    void continentCapitalsCanBeRequestedWithoutWorldwideReport() throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+            int status = Main.runReports(connection,
+                    new java.util.Scanner(
+                            "Europe\nWestern Europe\n2\nno\nyes\nSouth America\n"),
+                    new java.io.PrintStream(bytes), false);
+            String output = bytes.toString(java.nio.charset.StandardCharsets.UTF_8);
+
+            assertEquals(0, status);
+            assertFalse(output.contains("Capital cities worldwide"));
+            String regionalCapitals = output.substring(
+                    output.indexOf("Capital cities in South America"));
+            assertTrue(regionalCapitals.contains("Brazil |"));
+            assertFalse(regionalCapitals.contains("France |"));
         }
     }
 
@@ -296,20 +359,13 @@ public class IntegrationTest {
         }
     }
     @Test
-    void emptyCityDataDisplaysAnExplicitMessage() throws SQLException {
-        try (Connection connection = DatabaseConnectionManager.connect();
-             Statement statement = connection.createStatement()) {
-            // Connection uses the empty temporary table instead of the real city table
-            statement.execute("""
-                    CREATE TEMPORARY TABLE city (
-                        ID INT, Name VARCHAR(100), CountryCode CHAR(3),
-                        District VARCHAR(100), Population INT)
-                    """);
-            java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
-            Main.printAllCitiesWorldwide(connection, new java.io.PrintStream(bytes));
-            assertTrue(bytes.toString().contains("No cities found."));
-            assertEquals(3, bytes.toString().lines().count());
-        }
+    void emptyCityDataDisplaysAnExplicitMessage() {
+        java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+        Main.printCitiesWorldwide(List.of(), new java.io.PrintStream(bytes));
+
+        String output = bytes.toString(java.nio.charset.StandardCharsets.UTF_8);
+        assertTrue(output.contains("No cities found."));
+        assertEquals(3, output.lines().count());
     }
 
     @Test
@@ -318,6 +374,7 @@ public class IntegrationTest {
         connection.close();
         assertThrows(SQLException.class, () -> Main.getAllCitiesWorldwide(connection));
     }
+    // Read the independent database total used to verify language percentages.
     private double getWorldPopulation(Connection connection)
             throws SQLException {
 
