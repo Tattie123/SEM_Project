@@ -1,5 +1,9 @@
 # Integration testing and deployment handover
 
+For the current integration audit, outstanding feature list and final verification
+procedure, see [submission readiness — 30 October 2026](submission-readiness.md).
+The validation record below describes the earlier 12 October revision.
+
 ## Scope
 
 This change completes the worldwide city output (#13) and expands integration testing (#25) for the reports currently present on develop. The test/CI process and problem record support coordination (#58). Final submission coordination (#36) remains dependent on the team completing and integrating the other required features.
