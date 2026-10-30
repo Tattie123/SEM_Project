@@ -1,6 +1,7 @@
 name: SEM integration and deployment checks
 
 on:
+  workflow_dispatch:
   push:
   pull_request:
     branches: [develop, main]
@@ -50,27 +51,37 @@ jobs:
         run: |
           printf 'Europe\nWestern Europe\n5\n' | docker compose run --rm -T app > application-output.txt
           grep -F 'Population of Europe: 730074600' application-output.txt
+          grep -F 'Cities in Europe (population descending):' application-output.txt
+          grep -F 'Moscow | Russian Federation | Moscow (City) | 8389200' application-output.txt
           grep -F 'Chinese:' application-output.txt
           grep -F 'English:' application-output.txt
 
+      - name: Verify empty continent report
+        run: |
+          printf 'Antarctica\nWestern Europe\n5\n' | docker compose run --rm -T app > empty-continent-output.txt
+          grep -F 'Population of Antarctica: 0' empty-continent-output.txt
+          grep -F 'No cities found for continent: Antarctica' empty-continent-output.txt
+
       - name: Reject invalid user input
         run: |
-          if printf 'Europe\nWestern Europe\ninvalid\n' | docker compose run --rm -T app > invalid-input.txt; then
-            echo "Invalid input unexpectedly succeeded"
-            exit 1
-          fi
+          status=0
+          printf 'Europe\nWestern Europe\ninvalid\n' | docker compose run --rm -T app > invalid-input.txt || status=$?
+          test "$status" -eq 2
           grep -F 'Please enter a whole number.' invalid-input.txt
 
       - name: Reject database failures
         run: |
-          if docker compose run --rm -T -e DB_URL=jdbc:mysql://mysql:3306/missing app --all-cities > database-failure.txt 2>&1; then
-            echo "Missing database unexpectedly succeeded"
-            exit 1
-          fi
+          status=0
+          docker compose run --rm -T -e DB_URL=jdbc:mysql://mysql:3306/missing app --all-cities > database-failure.txt 2>&1 || status=$?
+          test "$status" -eq 1
           grep -F 'Unable to run reports:' database-failure.txt
       - name: Capture deployment evidence
         if: always()
-        run: docker compose logs > compose-logs.txt
+        run: |
+          docker compose logs > compose-logs.txt
+          git rev-parse HEAD > revision.txt
+          printf '%s/%s/actions/runs/%s\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" >> revision.txt
+          docker compose images >> revision.txt
 
       - name: Upload deployment evidence
         if: always()
@@ -82,6 +93,7 @@ jobs:
             invalid-input.txt
             database-failure.txt
             compose-logs.txt
+            revision.txt
 
       - name: Stop test database
         if: always()
