@@ -48,7 +48,7 @@ jobs:
 
       - name: Verify integrated application
         run: |
-          printf 'Europe\nWestern Europe\n5\n' | docker compose run --rm -T app > application-output.txt
+          printf 'Europe\nWestern Europe\n5\nno\nno\n' | docker compose run --rm -T app > application-output.txt
           grep -F 'Population of Europe: 730074600' application-output.txt
           grep -F 'Chinese:' application-output.txt
           grep -F 'English:' application-output.txt
