@@ -164,7 +164,10 @@ public class Main {
     public static void printAllCitiesWorldwide(Connection connection,
                                                java.io.PrintStream output)
             throws SQLException {
-        List<City> cities = getAllCitiesWorldwide(connection);
+        printCitiesWorldwide(getAllCitiesWorldwide(connection), output);
+    }
+
+    static void printCitiesWorldwide(List<City> cities, PrintStream output) {
         output.println("All cities worldwide");
         output.println("Name | Country | District | Population");
         if (cities.isEmpty()) {

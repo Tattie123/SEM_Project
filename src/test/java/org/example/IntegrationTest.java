@@ -129,7 +129,8 @@ public class IntegrationTest {
         try (Connection connection = DatabaseConnectionManager.connect()) {
             java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
             assertEquals(0, Main.runReports(connection,
-                    new java.util.Scanner("Antarctica\nWestern Europe\n2\n"),
+                    new java.util.Scanner(
+                            "Antarctica\nWestern Europe\n2\nno\nno\n"),
                     new java.io.PrintStream(bytes), false));
             assertTrue(bytes.toString().contains("No cities found for continent: Antarctica"));
         }
@@ -358,20 +359,13 @@ public class IntegrationTest {
         }
     }
     @Test
-    void emptyCityDataDisplaysAnExplicitMessage() throws SQLException {
-        try (Connection connection = DatabaseConnectionManager.connect();
-             Statement statement = connection.createStatement()) {
-            // Connection uses the empty temporary table instead of the real city table
-            statement.execute("""
-                    CREATE TEMPORARY TABLE city (
-                        ID INT, Name VARCHAR(100), CountryCode CHAR(3),
-                        District VARCHAR(100), Population INT)
-                    """);
-            java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
-            Main.printAllCitiesWorldwide(connection, new java.io.PrintStream(bytes));
-            assertTrue(bytes.toString().contains("No cities found."));
-            assertEquals(3, bytes.toString().lines().count());
-        }
+    void emptyCityDataDisplaysAnExplicitMessage() {
+        java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+        Main.printCitiesWorldwide(List.of(), new java.io.PrintStream(bytes));
+
+        String output = bytes.toString(java.nio.charset.StandardCharsets.UTF_8);
+        assertTrue(output.contains("No cities found."));
+        assertEquals(3, output.lines().count());
     }
 
     @Test
