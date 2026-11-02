@@ -1,7 +1,7 @@
 # Integration testing and deployment handover
 
 For the current integration audit, outstanding feature list and final verification
-procedure, see [submission readiness — 30 October 2026](submission-readiness.md).
+procedure, see [submission readiness — 2 November 2026](submission-readiness.md).
 The validation record below describes the earlier 12 October revision.
 
 ## Scope

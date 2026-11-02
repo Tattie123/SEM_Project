@@ -49,23 +49,26 @@ jobs:
 
       - name: Verify integrated application
         run: |
-          printf 'Europe\nWestern Europe\n5\n' | docker compose run --rm -T app > application-output.txt
+          printf 'Europe\nJapan\nMoscow (City)\nWestern Europe\n5\n' | docker compose run --rm -T app > application-output.txt
           grep -F 'Population of Europe: 730074600' application-output.txt
           grep -F 'Cities in Europe (population descending):' application-output.txt
           grep -F 'Moscow | Russian Federation | Moscow (City) | 8389200' application-output.txt
+          grep -F 'Cities in Japan (population descending):' application-output.txt
+          grep -F 'Cities in district Moscow (City) (population descending):' application-output.txt
+          grep -F 'Cities in Western Europe (population descending):' application-output.txt
           grep -F 'Chinese:' application-output.txt
           grep -F 'English:' application-output.txt
 
       - name: Verify empty continent report
         run: |
-          printf 'Antarctica\nWestern Europe\n5\n' | docker compose run --rm -T app > empty-continent-output.txt
+          printf 'Antarctica\nJapan\nMoscow (City)\nWestern Europe\n5\n' | docker compose run --rm -T app > empty-continent-output.txt
           grep -F 'Population of Antarctica: 0' empty-continent-output.txt
           grep -F 'No cities found for continent: Antarctica' empty-continent-output.txt
 
       - name: Reject invalid user input
         run: |
           status=0
-          printf 'Europe\nWestern Europe\ninvalid\n' | docker compose run --rm -T app > invalid-input.txt || status=$?
+          printf 'Europe\nJapan\nMoscow (City)\nWestern Europe\ninvalid\n' | docker compose run --rm -T app > invalid-input.txt || status=$?
           test "$status" -eq 2
           grep -F 'Please enter a whole number.' invalid-input.txt
 
