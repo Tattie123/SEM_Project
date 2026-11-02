@@ -59,7 +59,7 @@ public class Main {
                 });
             }
 
-                        String countryName = InputVal.readCountry(scanner, connection);
+            String countryName = InputVal.readCountry(scanner, connection);
 
             if (countryName != null) {
                 ErrorHandler.runSafely("country report", () -> {
