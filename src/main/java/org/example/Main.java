@@ -81,12 +81,93 @@ public class Main {
                         city.name, city.country, city.district, city.population);
             }
         }
+
+        output.print("Enter a country: ");
+
+        if (!scanner.hasNextLine()) {
+            output.println("Please enter a country.");
+            return 2;
+        }
+
+        String countryName = scanner.nextLine().trim();
+
+        if (countryName.isEmpty()) {
+            output.println("Please enter a country.");
+            return 2;
+        }
+
+        List<City> countryCities =
+                getCitiesByCountry(connection, countryName);
+
+        if (countryCities.isEmpty()) {
+            output.println("No cities found for country: " + countryName);
+        } else {
+            output.println("Cities in " + countryName
+                    + " (population descending):");
+            output.println("Name | Country | District | Population");
+
+            for (City city : countryCities) {
+                output.printf("%s | %s | %s | %d%n",
+                        city.name, city.country,
+                        city.district, city.population);
+            }
+        }
+
+        output.print("Enter a district: ");
+
+        if (!scanner.hasNextLine()) {
+            output.println("Please enter a district.");
+            return 2;
+        }
+
+        String district = scanner.nextLine().trim();
+
+        if (district.isEmpty()) {
+            output.println("Please enter a district.");
+            return 2;
+        }
+
+        List<City> districtCities =
+                getCitiesByDistrict(connection, district);
+
+        if (districtCities.isEmpty()) {
+            output.println("No cities found for district: " + district);
+        } else {
+            output.println("Cities in district " + district
+                    + " (population descending):");
+            output.println("Name | Country | District | Population");
+
+            for (City city : districtCities) {
+                output.printf("%s | %s | %s | %d%n",
+                        city.name, city.country,
+                        city.district, city.population);
+            }
+        }
+
         output.print("Enter a region: ");
         if (!scanner.hasNextLine()) {
             output.println("Please enter a region.");
             return 2;
         }
         String region = scanner.nextLine().trim();
+
+        List<City> regionCities = getCitiesByRegion(connection, region);
+
+        if (regionCities.isEmpty()) {
+            System.out.println("No cities found for region: " + region);
+        } else {
+            System.out.println("Cities in " + region
+                    + " (population descending):");
+
+            System.out.printf("%-25s %-30s %-20s %12s%n",
+                    "City", "Country", "District", "Population");
+
+            for (City city : regionCities) {
+                System.out.printf("%-25s %-30s %-20s %,12d%n",
+                        city.name, city.country, city.district, city.population);
+            }
+        }
+
         if (region.isEmpty()) {
             output.println("Please enter a region.");
             return 2;
@@ -303,6 +384,113 @@ public class Main {
 
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, continent);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    City city = new City();
+
+                    city.name = resultSet.getString("Name");
+                    city.country = resultSet.getString("Country");
+                    city.district = resultSet.getString("District");
+                    city.population = resultSet.getInt("Population");
+
+                    cities.add(city);
+                }
+            }
+        }
+
+        return cities;
+    }
+
+    public static List<City> getCitiesByCountry(
+            Connection connection, String countryName) throws SQLException {
+
+        List<City> cities = new ArrayList<>();
+
+        String sql = """
+            SELECT city.Name,
+                   country.Name AS Country,
+                   city.District,
+                   city.Population
+            FROM city
+            JOIN country ON city.CountryCode = country.Code
+            WHERE country.Name = ?
+            ORDER BY city.Population DESC
+            """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, countryName);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    City city = new City();
+                    city.name = resultSet.getString("Name");
+                    city.country = resultSet.getString("Country");
+                    city.district = resultSet.getString("District");
+                    city.population = resultSet.getInt("Population");
+                    cities.add(city);
+                }
+            }
+        }
+
+        return cities;
+    }
+
+
+    public static List<City> getCitiesByDistrict(
+            Connection connection, String district) throws SQLException {
+
+        List<City> cities = new ArrayList<>();
+
+        String sql = """
+            SELECT city.Name,
+                   country.Name AS Country,
+                   city.District,
+                   city.Population
+            FROM city
+            JOIN country ON city.CountryCode = country.Code
+            WHERE city.District = ?
+            ORDER BY city.Population DESC
+            """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, district);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    City city = new City();
+                    city.name = resultSet.getString("Name");
+                    city.country = resultSet.getString("Country");
+                    city.district = resultSet.getString("District");
+                    city.population = resultSet.getInt("Population");
+
+                    cities.add(city);
+                }
+            }
+        }
+
+        return cities;
+    }
+
+
+    public static List<City> getCitiesByRegion(
+            Connection connection, String region) throws SQLException {
+
+        List<City> cities = new ArrayList<>();
+
+        String sql = """
+            SELECT city.Name,
+                   country.Name AS Country,
+                   city.District,
+                   city.Population
+            FROM city
+            JOIN country ON city.CountryCode = country.Code
+            WHERE country.Region = ?
+            ORDER BY city.Population DESC
+            """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, region);
 
             try (ResultSet resultSet = statement.executeQuery()) {
                 while (resultSet.next()) {
