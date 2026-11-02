@@ -234,37 +234,63 @@ public class IntegrationTest {
     void reportsRunTogetherWithUserInput() throws SQLException {
         try (Connection connection = DatabaseConnectionManager.connect()) {
             java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
-            int status = Main.runReports(connection,
-                    new java.util.Scanner("Europe\nJapan\nMoscow (City)\nWestern Europe\n2\n"),
-                    new java.io.PrintStream(bytes), false);
+
+            String input = String.join("\n",
+                    "Europe",
+                    "Japan",
+                    "Moscow (City)",
+                    "Western Europe",
+                    "2",
+                    "yes",
+                    "yes",
+                    "South America") + "\n";
+
+            int status = Main.runReports(
+                    connection,
+                    new java.util.Scanner(input),
+                    new java.io.PrintStream(bytes),
+                    false);
+
             String output = bytes.toString(java.nio.charset.StandardCharsets.UTF_8);
-            assertEquals(0, status);
+            assertEquals(0, status, () -> "runReports output:\n" + output);
+
             assertTrue(output.contains("World population: 6078749450"));
             assertTrue(output.contains("Population of Europe: 730074600"));
-            String continentReport = output.substring(output.indexOf("Cities in Europe"),
+
+            String continentReport = output.substring(
+                    output.indexOf("Cities in Europe"),
                     output.indexOf("Enter a region:"));
+
             assertTrue(continentReport.contains("Name | Country | District | Population"));
             assertTrue(continentReport.contains(
                     "Moscow | Russian Federation | Moscow (City) | 8389200"));
             assertFalse(continentReport.contains("Mumbai (Bombay)"));
+
             assertTrue(output.contains("DEU | Germany | Europe | Western Europe | 82164700 | Berlin"));
             assertTrue(output.contains("FRA | France | Europe | Western Europe | 59225700 | Paris"));
             assertFalse(output.contains("AUT | Austria"));
+
             assertTrue(output.contains("Capital cities worldwide"));
             assertTrue(output.contains("France | Paris"));
             assertFalse(output.contains("Antarctica |"));
+
             String regionalCapitals = output.substring(
                     output.indexOf("Capital cities in South America"));
+
             assertTrue(regionalCapitals.contains("Brazil |"));
             assertFalse(regionalCapitals.contains("France |"));
+
             String[] capitalRows = regionalCapitals.lines().skip(2).toArray(String[]::new);
             int previousPopulation = Integer.MAX_VALUE;
+
             for (String row : capitalRows) {
-                int population = Integer.parseInt(row.substring(row.lastIndexOf('|') + 1).trim());
+                int population = Integer.parseInt(
+                        row.substring(row.lastIndexOf('|') + 1).trim());
                 assertTrue(population <= previousPopulation,
                         "Continent capitals must be ordered by population descending");
                 previousPopulation = population;
             }
+
             assertTrue(output.contains("Chinese:"));
             assertTrue(output.contains("English:"));
         }
