@@ -25,7 +25,8 @@ public class Main {
             System.exit(2);
         }
         try (Connection connection = DatabaseConnectionManager.connect()) {
-            printAllCitiesWorldwide(connection, System.out);
+                        ErrorHandler.runSafely("all cities report", () ->
+                    printAllCitiesWorldwide(connection, System.out));
             if (args.length == 1) {
                 return;
             }
@@ -58,66 +59,50 @@ public class Main {
                 });
             }
 
-            System.out.print("Enter a country: ");
+                        String countryName = InputVal.readCountry(scanner, connection);
 
-            if (!scanner.hasNextLine()) {
-                System.out.println("Please enter a country.");
-                System.exit(2);
+            if (countryName != null) {
+                ErrorHandler.runSafely("country report", () -> {
+                    List<City> countryCities =
+                            getCitiesByCountry(connection, countryName);
+
+                    if (countryCities.isEmpty()) {
+                        System.out.println("No cities found for country: " + countryName);
+                    } else {
+                        System.out.println("Cities in " + countryName
+                                + " (population descending):");
+                        System.out.println("Name | Country | District | Population");
+
+                        for (City city : countryCities) {
+                            System.out.printf("%s | %s | %s | %d%n",
+                                    city.name, city.country,
+                                    city.district, city.population);
+                        }
+                    }
+                });
             }
 
-            String countryName = scanner.nextLine().trim();
+            String district = InputVal.readDistrict(scanner, connection);
 
-            if (countryName.isEmpty()) {
-                System.out.println("Please enter a country.");
-                System.exit(2);
-            }
+            if (district != null) {
+                ErrorHandler.runSafely("district report", () -> {
+                    List<City> districtCities =
+                            getCitiesByDistrict(connection, district);
 
-            List<City> countryCities =
-                    getCitiesByCountry(connection, countryName);
+                    if (districtCities.isEmpty()) {
+                        System.out.println("No cities found for district: " + district);
+                    } else {
+                        System.out.println("Cities in district " + district
+                                + " (population descending):");
+                        System.out.println("Name | Country | District | Population");
 
-            if (countryCities.isEmpty()) {
-                System.out.println("No cities found for country: " + countryName);
-            } else {
-                System.out.println("Cities in " + countryName
-                        + " (population descending):");
-                System.out.println("Name | Country | District | Population");
-
-                for (City city : countryCities) {
-                    System.out.printf("%s | %s | %s | %d%n",
-                            city.name, city.country,
-                            city.district, city.population);
-                }
-            }
-
-            System.out.print("Enter a district: ");
-
-            if (!scanner.hasNextLine()) {
-                System.out.println("Please enter a district.");
-                System.exit(2);
-            }
-
-            String district = scanner.nextLine().trim();
-
-            if (district.isEmpty()) {
-                System.out.println("Please enter a district.");
-                System.exit(2);
-            }
-
-            List<City> districtCities =
-                    getCitiesByDistrict(connection, district);
-
-            if (districtCities.isEmpty()) {
-                System.out.println("No cities found for district: " + district);
-            } else {
-                System.out.println("Cities in district " + district
-                        + " (population descending):");
-                System.out.println("Name | Country | District | Population");
-
-                for (City city : districtCities) {
-                    System.out.printf("%s | %s | %s | %d%n",
-                            city.name, city.country,
-                            city.district, city.population);
-                }
+                        for (City city : districtCities) {
+                            System.out.printf("%s | %s | %s | %d%n",
+                                    city.name, city.country,
+                                    city.district, city.population);
+                        }
+                    }
+                });
             }
 
             // Ask the user for the region and number of countries.
@@ -125,23 +110,25 @@ public class Main {
             // String region = scanner.nextLine().trim();
             String region = InputVal.readRegion(scanner, connection);
 
-            if (region != null) {
-                List<City> regionCities = getCitiesByRegion(connection, region);
+                       if (region != null) {
+                ErrorHandler.runSafely("region report", () -> {
+                    List<City> regionCities = getCitiesByRegion(connection, region);
 
-                if (regionCities.isEmpty()) {
-                    System.out.println("No cities found for region: " + region);
-                } else {
-                    System.out.println("Cities in " + region
-                            + " (population descending):");
+                    if (regionCities.isEmpty()) {
+                        System.out.println("No cities found for region: " + region);
+                    } else {
+                        System.out.println("Cities in " + region
+                                + " (population descending):");
 
-                    System.out.printf("%-25s %-30s %-20s %12s%n",
-                            "City", "Country", "District", "Population");
+                        System.out.printf("%-25s %-30s %-20s %12s%n",
+                                "City", "Country", "District", "Population");
 
-                    for (City city : regionCities) {
-                        System.out.printf("%-25s %-30s %-20s %,12d%n",
-                                city.name, city.country, city.district, city.population);
+                        for (City city : regionCities) {
+                            System.out.printf("%-25s %-30s %-20s %,12d%n",
+                                    city.name, city.country, city.district, city.population);
+                        }
                     }
-                }
+                });
             }
 
             // System.out.print("Enter the number of countries: ");
