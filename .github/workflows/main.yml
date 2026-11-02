@@ -55,7 +55,7 @@ jobs:
 
       - name: Reject invalid user input
         run: |
-          if printf 'Europe\nWestern Europe\ninvalid\n' | docker compose run --rm -T app > invalid-input.txt; then
+          if printf 'Europe\nJapan\nMoscow (City  )\nWestern Europe\ninvalid\n' | docker compose run --rm -T app > invalid-input.txt; then
             echo "Invalid input unexpectedly succeeded"
             exit 1
           fi
