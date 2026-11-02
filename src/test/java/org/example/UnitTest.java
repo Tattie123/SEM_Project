@@ -1,3 +1,4 @@
+
 package org.example;
 
 import org.junit.jupiter.api.Test;
@@ -11,4 +12,17 @@ public class UnitTest {
 
         assertEquals("London", city);
     }
+
+    @Test
+    void testInvalidNumberOfCities() {
+
+        assertThrows(IllegalArgumentException.class, () -> {
+            Main.getTopCitiesByDistrict(null, "Scotland", 0);
+        });
+
+    }
+
 }
+
+
+
