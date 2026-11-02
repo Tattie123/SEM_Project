@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="DataSourcePerFileMappings">
+    <file url="file://$PROJECT_DIR$/src/main/java/org/example/Main.java" value="a8b55cf5-9219-4d10-8046-01ac31fa84d4" />
+    <file url="file://$PROJECT_DIR$/src/test/java/org/example/IntegrationTest.java" value="a8b55cf5-9219-4d10-8046-01ac31fa84d4" />
+  </component>
+</project>
