@@ -58,6 +58,12 @@ public class Main {
             return 0;
         }
         output.printf("World population: %d%n", getWorldPopulation(connection));
+        // All countries worldwide
+        printAllCountriesWorldwide(connection);
+        // All countries in Europe
+        printAllCountriesByContinent(connection, "Europe");
+        // all countries in Western Europe
+        printAllCountriesByRegion(connection, "Western Europe");
         output.print("Enter a continent: ");
         if (!scanner.hasNextLine()) {
             output.println("Please enter a continent.");
@@ -182,6 +188,9 @@ public class Main {
             output.println("Please enter a number greater than zero.");
             return 2;
         }
+
+        printTopCountriesByContinent(connection, continent, n);
+        printTopCountriesWorldwide(connection, n);
         printTopCountriesByRegion(connection, region, n, output);
         double[] chinese = getChineseSpeakers(connection);
         double[] english = getEnglishSpeakers(connection);
@@ -662,4 +671,205 @@ public class Main {
                     }
                 }
             }
+
+    // Displays the top N countries in a continent
+    public static void printTopCountriesByContinent(
+            Connection connection, String continent, int n)
+            throws SQLException {
+
+        if (n <= 0) {
+            System.out.println("enter a number greater than 0");
+            return;
+        }
+
+        String sql = """
+                SELECT country.Code, country.Name, country.Continent,
+                       country.Region, country.Population,
+                       city.Name AS Capital
+                FROM country
+                LEFT JOIN city ON country.Capital = city.ID
+                WHERE country.Continent = ?
+                ORDER BY country.Population DESC, country.Code
+                LIMIT ?
+                """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setString(1, continent);
+            statement.setInt(2, n);
+
+            try(ResultSet results = statement.executeQuery()) {
+
+                System.out.println("Top " + n + " countries in" + continent);
+                System.out.println("Code | Name | Continent | Region | Population | Capital");
+
+                while (results.next()) {
+                    System.out.println(
+                            results.getString("Code") + " | " +
+                            results.getString("name") + " | " +
+                            results.getString("Continent") + " | " +
+                            results.getString("Region") + " | " +
+                            results.getString("Population") + " | " +
+                            results.getString("Capital"));
+                }
+            }
+        }
+    }
+
+    // Displays the top N countries in the world
+    public static void printTopCountriesWorldwide(
+            Connection connection, int n) throws SQLException {
+
+        String sql = """
+            SELECT country.Code, country.Name, country.Continent,
+                   country.Region, country.Population,
+                   city.Name AS Capital
+            FROM country
+            LEFT JOIN city ON country.Capital = city.ID
+            ORDER BY country.Population DESC, country.Code
+            LIMIT ?
+            """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setInt(1, n);
+
+            try (ResultSet results = statement.executeQuery()) {
+
+                System.out.println("Top " + n + " countries in the world");
+                System.out.println("Code | Name | Continent | Region | Population | Capital");
+
+                while (results.next()) {
+                    System.out.println(
+                            results.getString("Code") + " | " +
+                                    results.getString("Name") + " | " +
+                                    results.getString("Continent") + " | " +
+                                    results.getString("Region") + " | " +
+                                    results.getString("Population") + " | " +
+                                    results.getString("Capital"));
+                }
+            }
+        }
+    }
+
+
+    // US05 - Display all countries worldwide
+    public static void printAllCountriesWorldwide(Connection connection)
+            throws SQLException {
+
+        // Get all countries, largest population first
+        String sql = """
+                SELECT country.Code, country.Name, country.Continent,
+                       country.Region, country.Population,
+                       city.Name AS Capital
+                FROM country
+                LEFT JOIN city ON country.Capital = city.ID
+                ORDER BY country.Population DESC
+                """;
+
+        // Run the SQL query
+        try (PreparedStatement statement = connection.prepareStatement(sql);
+             ResultSet results = statement.executeQuery()) {
+
+            // Print the report heading
+            System.out.println("All Countries Worldwide");
+            System.out.println("Code | Name | Continent | Region | Population | Capital");
+
+            // Print each country
+            while (results.next()) {
+                System.out.println(
+                        results.getString("Code") + " | " +
+                                results.getString("Name") + " | " +
+                                results.getString("Continent") + " | " +
+                                results.getString("Region") + " | " +
+                                results.getLong("Population") + " | " +
+                                results.getString("Capital"));
+            }
+        }
+    }
+
+
+    // US06 - Display all countries in a continent
+    public static void printAllCountriesByContinent(
+            Connection connection, String continent) throws SQLException {
+
+        // Get countries from the selected continent
+        String sql = """
+                SELECT country.Code, country.Name, country.Continent,
+                       country.Region, country.Population,
+                       city.Name AS Capital
+                FROM country
+                LEFT JOIN city ON country.Capital = city.ID
+                WHERE country.Continent = ?
+                ORDER BY country.Population DESC
+                """;
+
+        // Run the SQL query
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            // Set the continent
+            statement.setString(1, continent);
+
+            try (ResultSet results = statement.executeQuery()) {
+
+                // Print the report heading
+                System.out.println("Countries in " + continent);
+                System.out.println("Code | Name | Continent | Region | Population | Capital");
+
+                // Print each country
+                while (results.next()) {
+                    System.out.println(
+                            results.getString("Code") + " | " +
+                                    results.getString("Name") + " | " +
+                                    results.getString("Continent") + " | " +
+                                    results.getString("Region") + " | " +
+                                    results.getLong("Population") + " | " +
+                                    results.getString("Capital"));
+                }
+            }
+        }
+    }
+
+
+    // US07 - Display all countries in a region
+    public static void printAllCountriesByRegion(
+            Connection connection, String region) throws SQLException {
+
+        // Get countries from the selected region
+        String sql = """
+                SELECT country.Code, country.Name, country.Continent,
+                       country.Region, country.Population,
+                       city.Name AS Capital
+                FROM country
+                LEFT JOIN city ON country.Capital = city.ID
+                WHERE country.Region = ?
+                ORDER BY country.Population DESC
+                """;
+
+        // Run the SQL query
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            // Set the region
+            statement.setString(1, region);
+
+            try (ResultSet results = statement.executeQuery()) {
+
+                // Print the report heading
+                System.out.println("Countries in " + region);
+                System.out.println("Code | Name | Continent | Region | Population | Capital");
+
+                // Print each country
+                while (results.next()) {
+                    System.out.println(
+                            results.getString("Code") + " | " +
+                                    results.getString("Name") + " | " +
+                                    results.getString("Continent") + " | " +
+                                    results.getString("Region") + " | " +
+                                    results.getLong("Population") + " | " +
+                                    results.getString("Capital"));
+                }
+            }
+        }
+    }
+
 }
