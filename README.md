@@ -16,7 +16,7 @@ To run all currently integrated reports interactively:
 
     docker compose run --rm app
 
-Enter a continent, region and positive whole-number country limit when prompted. The application also displays world population and Chinese/English speaker statistics. Missing or invalid input returns exit code 2; database failures return exit code 1.
+Enter a continent, region and positive whole-number country limit when prompted. The continent and region reports show the total population and the number and percentage of people living in and outside the cities listed in the dataset. The application also displays world population and Chinese/English speaker statistics. Missing or invalid input returns exit code 2; database failures return exit code 1.
 
     docker compose down
 
