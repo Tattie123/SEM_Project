@@ -124,7 +124,7 @@ public class IntegrationTest {
         try (Connection connection = DatabaseConnectionManager.connect()) {
             java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
             assertEquals(0, Main.runReports(connection,
-                    new java.util.Scanner("Antarctica\nWestern Europe\n2\n"),
+                    new java.util.Scanner("Antarctica\nJapann\nMoscow (City)\nWestern Europe\n2\n"),
                     new java.io.PrintStream(bytes), false));
             String output = bytes.toString().replace("\r\n", "\n");
             assertTrue(output.contains("""
@@ -231,7 +231,7 @@ public class IntegrationTest {
         try (Connection connection = DatabaseConnectionManager.connect()) {
             java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
             int status = Main.runReports(connection,
-                    new java.util.Scanner("Europe\nWestern Europe\n2\n"),
+                    new java.util.Scanner("Europe\nJapan\nMoscow (City)\nWestern Europe\n2\n"),
                     new java.io.PrintStream(bytes), false);
             String output = bytes.toString(java.nio.charset.StandardCharsets.UTF_8)
                     .replace("\r\n", "\n");
