@@ -48,10 +48,23 @@ jobs:
 
       - name: Verify integrated application
         run: |
-          printf 'Europe\nJapan\nMoscow (City)\nWestern Europe\n5\n' | docker compose run --rm -T app > application-output.txt
+          printf 'Europe\nJapan\nMoscow (City)\nWestern Europe\n5\nno\nno\nno\nno\nno\nno\nno\n' | docker compose run --rm -T app > application-output.txt
           grep -F 'Population of Europe: 730074600' application-output.txt
           grep -F 'Chinese:' application-output.txt
           grep -F 'English:' application-output.txt
+
+      - name: Verify capital and country population reports
+        run: |
+          printf 'Europe\nJapan\nMoscow (City)\nWestern Europe\n5\nno\nno\nyes\nBritish Islands\nyes\n3\nyes\nEurope\n3\nyes\nWestern Europe\n3\nyes\nUnited Kingdom\n' | docker compose run --rm -T app > capital-population-output.txt
+          grep -F 'London | United Kingdom | 7285000' capital-population-output.txt
+          grep -F 'Top 3 capital cities worldwide' capital-population-output.txt
+          grep -F 'Seoul | South Korea | 9981619' capital-population-output.txt
+          grep -F 'Top 3 capital cities in Europe' capital-population-output.txt
+          grep -F 'Moscow | Russian Federation | 8389200' capital-population-output.txt
+          grep -F 'Top 3 capital cities in Western Europe' capital-population-output.txt
+          grep -F 'Wien | Austria | 1608144' capital-population-output.txt
+          grep -F 'Living in cities | 22436673 | 37.63%' capital-population-output.txt
+          grep -F 'Not living in cities | 37186727 | 62.37%' capital-population-output.txt
 
       - name: Reject invalid user input
         run: |
