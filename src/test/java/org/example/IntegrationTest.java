@@ -17,6 +17,9 @@ import static org.junit.jupiter.api.Assertions.*;
 /** Integration checks for the population queries using the World database. */
 public class IntegrationTest {
 
+    // Answers "no" to the optional reports that follow the continent capital report.
+    private static final String DECLINE_LATER_REPORTS = "no\nno\nno\nno\nno\n";
+
     // Verify the aggregate uses a long value for the total population.
     @Test
     void worldPopulationIncludesAllCountriesWithoutIntegerOverflow()
@@ -129,7 +132,8 @@ public class IntegrationTest {
         try (Connection connection = DatabaseConnectionManager.connect()) {
             java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
             assertEquals(0, Main.runReports(connection,
-                    new java.util.Scanner("Antarctica\nJapan\nMoscow (City)\nWestern Europe\n2\nno\nno\n"),
+                    new java.util.Scanner("Antarctica\nJapan\nMoscow (City)\nWestern Europe\n2\nno\nno\n"
+                            + DECLINE_LATER_REPORTS),
                     new java.io.PrintStream(bytes), false));
             assertTrue(bytes.toString().contains("No cities found for continent: Antarctica"));
         }
@@ -243,7 +247,7 @@ public class IntegrationTest {
                     "2",
                     "yes",
                     "yes",
-                    "South America") + "\n";
+                    "South America") + "\n" + DECLINE_LATER_REPORTS;
 
             int status = Main.runReports(
                     connection,
@@ -275,12 +279,14 @@ public class IntegrationTest {
             assertFalse(output.contains("Antarctica |"));
 
             String regionalCapitals = output.substring(
-                    output.indexOf("Capital cities in South America"));
+                    output.indexOf("Capital cities in South America"),
+                    output.indexOf("Would you like to see capital cities by region?"));
 
             assertTrue(regionalCapitals.contains("Brazil |"));
             assertFalse(regionalCapitals.contains("France |"));
 
-            String[] capitalRows = regionalCapitals.lines().skip(2).toArray(String[]::new);
+            String[] capitalRows = regionalCapitals.lines().skip(2)
+                    .filter(line -> !line.isBlank()).toArray(String[]::new);
             int previousPopulation = Integer.MAX_VALUE;
 
             for (String row : capitalRows) {
@@ -301,7 +307,8 @@ public class IntegrationTest {
         try (Connection connection = DatabaseConnectionManager.connect()) {
             java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
             int status = Main.runReports(connection,
-                    new java.util.Scanner("Europe\nJapan\nMoscow (City)\nWestern Europe\n2\nno\nno\n"),
+                    new java.util.Scanner("Europe\nJapan\nMoscow (City)\nWestern Europe\n2\nno\nno\n"
+                            + DECLINE_LATER_REPORTS),
                     new java.io.PrintStream(bytes), false);
             String output = bytes.toString(java.nio.charset.StandardCharsets.UTF_8);
 
@@ -319,7 +326,8 @@ public class IntegrationTest {
             java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
             int status = Main.runReports(connection,
                     new java.util.Scanner(
-                            "Europe\nJapan\nMoscow (City)\nWestern Europe\n2\nno\nyes\nSouth America\n"),
+                            "Europe\nJapan\nMoscow (City)\nWestern Europe\n2\nno\nyes\nSouth America\n"
+                                    + DECLINE_LATER_REPORTS),
                     new java.io.PrintStream(bytes), false);
             String output = bytes.toString(java.nio.charset.StandardCharsets.UTF_8);
 
@@ -390,6 +398,290 @@ public class IntegrationTest {
         String output = bytes.toString(java.nio.charset.StandardCharsets.UTF_8);
         assertTrue(output.contains("No cities found."));
         assertEquals(3, output.lines().count());
+    }
+
+    // Input that answers every existing prompt and declines both earlier capital reports.
+    private static final String BASE_INPUT =
+            "Europe\nJapan\nMoscow (City)\nWestern Europe\n2\nno\nno\n";
+
+    @Test
+    void capitalCitiesInBritishIslandsAreReturnedInPopulationOrder()
+            throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            List<City> capitals =
+                    Main.getCapitalCitiesByRegion(connection, "British Islands");
+
+            assertEquals(2, capitals.size());
+            assertEquals("London", capitals.get(0).name);
+            assertEquals("United Kingdom", capitals.get(0).country);
+            assertEquals(7285000, capitals.get(0).population);
+            assertEquals("Dublin", capitals.get(1).name);
+            assertEquals("Ireland", capitals.get(1).country);
+            assertEquals(481854, capitals.get(1).population);
+        }
+    }
+
+    @Test
+    void capitalCitiesByRegionAreSortedByPopulationDescending()
+            throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            List<City> capitals =
+                    Main.getCapitalCitiesByRegion(connection, "Western Europe");
+
+            assertEquals(9, capitals.size());
+            assertEquals("Berlin", capitals.get(0).name);
+            for (int i = 1; i < capitals.size(); i++) {
+                assertTrue(capitals.get(i - 1).population >= capitals.get(i).population,
+                        "Capital cities must be sorted by population descending");
+            }
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"RegionThatDoesNotExist", "Western Europe' OR '1'='1"})
+    void unknownRegionReturnsNoCapitalCities(String region) throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            assertTrue(Main.getCapitalCitiesByRegion(connection, region).isEmpty());
+        }
+    }
+
+    @Test
+    void topThreeCapitalCitiesWorldwideAreReturned() throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            List<City> capitals = Main.getTopCapitalCitiesWorldwide(connection, 3);
+
+            assertEquals(3, capitals.size());
+            assertEquals("Seoul", capitals.get(0).name);
+            assertEquals("South Korea", capitals.get(0).country);
+            assertEquals(9981619, capitals.get(0).population);
+            assertEquals("Jakarta", capitals.get(1).name);
+            assertEquals(9604900, capitals.get(1).population);
+            assertEquals("Mexico", capitals.get(2).country);
+            assertEquals(8591309, capitals.get(2).population);
+        }
+    }
+
+    @Test
+    void requestingMoreCapitalsThanExistReturnsAllWorldwide() throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            List<City> capitals = Main.getTopCapitalCitiesWorldwide(connection, 1000);
+
+            assertEquals(232, capitals.size());
+            for (int i = 1; i < capitals.size(); i++) {
+                assertTrue(capitals.get(i - 1).population >= capitals.get(i).population,
+                        "Capital cities must be sorted by population descending");
+            }
+        }
+    }
+
+    @Test
+    void topThreeCapitalCitiesInEuropeAreReturned() throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            List<City> capitals =
+                    Main.getTopCapitalCitiesByContinent(connection, "Europe", 3);
+
+            assertEquals(3, capitals.size());
+            assertEquals("Moscow", capitals.get(0).name);
+            assertEquals("Russian Federation", capitals.get(0).country);
+            assertEquals(8389200, capitals.get(0).population);
+            assertEquals("London", capitals.get(1).name);
+            assertEquals(7285000, capitals.get(1).population);
+            assertEquals("Berlin", capitals.get(2).name);
+            assertEquals(3386667, capitals.get(2).population);
+        }
+    }
+
+    @Test
+    void requestingMoreCapitalsThanExistReturnsAllInContinent() throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            List<City> capitals =
+                    Main.getTopCapitalCitiesByContinent(connection, "Oceania", 100);
+
+            assertEquals(27, capitals.size());
+            for (int i = 1; i < capitals.size(); i++) {
+                assertTrue(capitals.get(i - 1).population >= capitals.get(i).population,
+                        "Capital cities must be sorted by population descending");
+            }
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"Antarctica", "ContinentThatDoesNotExist", "Europe' OR '1'='1"})
+    void continentWithNoCapitalsReturnsEmptyList(String continent) throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            assertTrue(Main.getTopCapitalCitiesByContinent(connection, continent, 5)
+                    .isEmpty());
+        }
+    }
+
+    @Test
+    void topThreeCapitalCitiesInWesternEuropeAreReturned() throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            List<City> capitals =
+                    Main.getTopCapitalCitiesByRegion(connection, "Western Europe", 3);
+
+            assertEquals(3, capitals.size());
+            assertEquals("Berlin", capitals.get(0).name);
+            assertEquals("Germany", capitals.get(0).country);
+            assertEquals(3386667, capitals.get(0).population);
+            assertEquals("Paris", capitals.get(1).name);
+            assertEquals(2125246, capitals.get(1).population);
+            assertEquals("Wien", capitals.get(2).name);
+            assertEquals(1608144, capitals.get(2).population);
+        }
+    }
+
+    @Test
+    void requestingMoreCapitalsThanExistReturnsAllInRegion() throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            List<City> capitals =
+                    Main.getTopCapitalCitiesByRegion(connection, "Caribbean", 100);
+
+            assertEquals(24, capitals.size());
+            for (int i = 1; i < capitals.size(); i++) {
+                assertTrue(capitals.get(i - 1).population >= capitals.get(i).population,
+                        "Capital cities must be sorted by population descending");
+            }
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"RegionThatDoesNotExist", "Caribbean' OR '1'='1"})
+    void unknownRegionReturnsNoTopCapitalCities(String region) throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            assertTrue(Main.getTopCapitalCitiesByRegion(connection, region, 5).isEmpty());
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, -1})
+    void nonPositiveCapitalLimitIsRejected(int n) throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            assertThrows(IllegalArgumentException.class,
+                    () -> Main.getTopCapitalCitiesWorldwide(connection, n));
+            assertThrows(IllegalArgumentException.class,
+                    () -> Main.getTopCapitalCitiesByContinent(connection, "Europe", n));
+            assertThrows(IllegalArgumentException.class,
+                    () -> Main.getTopCapitalCitiesByRegion(connection, "Caribbean", n));
+        }
+    }
+
+    @Test
+    void unitedKingdomPopulationIsSplitIntoCityAndNonCity() throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            CountryPopulation result =
+                    Main.getCountryPopulation(connection, "United Kingdom");
+
+            assertNotNull(result);
+            assertEquals("United Kingdom", result.name);
+            assertEquals(59623400L, result.totalPopulation);
+            assertEquals(22436673L, result.cityPopulation);
+            assertEquals(37186727L, result.getNonCityPopulation());
+            assertEquals(37.63, result.getCityPercentage(), 0.01);
+            assertEquals(62.37, result.getNonCityPercentage(), 0.01);
+            assertEquals(100.0,
+                    result.getCityPercentage() + result.getNonCityPercentage(), 0.0001);
+        }
+    }
+
+    @Test
+    void countryWithZeroPopulationHasZeroPercentages() throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            CountryPopulation result = Main.getCountryPopulation(connection, "Antarctica");
+
+            assertNotNull(result);
+            assertEquals(0L, result.totalPopulation);
+            assertEquals(0L, result.cityPopulation);
+            assertEquals(0.0, result.getCityPercentage());
+            assertEquals(0.0, result.getNonCityPercentage());
+        }
+    }
+
+    @Test
+    void cityPopulationLargerThanCountryIsReportedAsIs() throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            CountryPopulation result = Main.getCountryPopulation(connection, "Singapore");
+
+            assertNotNull(result);
+            assertEquals(3567000L, result.totalPopulation);
+            assertEquals(4017733L, result.cityPopulation);
+            assertTrue(result.getNonCityPopulation() < 0);
+
+            java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+            Main.printCountryPopulation(result, "Singapore", new java.io.PrintStream(bytes));
+            assertTrue(bytes.toString().contains("Note: the database's city populations"));
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"CountryThatDoesNotExist", "France' OR '1'='1"})
+    void unknownCountryReturnsNull(String country) throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            assertNull(Main.getCountryPopulation(connection, country));
+        }
+    }
+
+    @Test
+    void newCapitalAndPopulationReportsRunWithUserInput() throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+            String input = BASE_INPUT
+                    + "yes\nBritish Islands\n"
+                    + "yes\n3\n"
+                    + "yes\nEurope\n3\n"
+                    + "yes\nWestern Europe\n3\n"
+                    + "yes\nUnited Kingdom\n";
+
+            int status = Main.runReports(connection, new java.util.Scanner(input),
+                    new java.io.PrintStream(bytes), false);
+            String output = bytes.toString(java.nio.charset.StandardCharsets.UTF_8);
+            assertEquals(0, status, () -> "runReports output:\n" + output);
+
+            assertTrue(output.contains("Capital cities in region British Islands"));
+            assertTrue(output.contains("London | United Kingdom | 7285000"));
+            assertTrue(output.contains("Dublin | Ireland | 481854"));
+
+            assertTrue(output.contains("Top 3 capital cities worldwide"));
+            assertTrue(output.contains("Seoul | South Korea | 9981619"));
+
+            assertTrue(output.contains("Top 3 capital cities in Europe"));
+            assertTrue(output.contains("Moscow | Russian Federation | 8389200"));
+
+            assertTrue(output.contains("Top 3 capital cities in Western Europe"));
+            assertTrue(output.contains("Wien | Austria | 1608144"));
+            assertFalse(output.contains("Amsterdam | Netherlands | 731200"));
+
+            assertTrue(output.contains("Population of United Kingdom"));
+            assertTrue(output.contains("Total population | 59623400"));
+            assertTrue(output.contains("Living in cities | 22436673 | 37.63%"));
+            assertTrue(output.contains("Not living in cities | 37186727 | 62.37%"));
+        }
+    }
+
+    @Test
+    void unknownCountryDisplaysNoResultsMessage() throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+            int status = Main.runReports(connection,
+                    new java.util.Scanner(BASE_INPUT + "no\nno\nno\nno\nyes\nAtlantis\n"),
+                    new java.io.PrintStream(bytes), false);
+
+            assertEquals(0, status);
+            assertTrue(bytes.toString().contains("No country found with name: Atlantis"));
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"maybe\n", "no\nyes\n0\n", "no\nyes\nabc\n",
+            "no\nno\nyes\nEurope\n-1\n", "no\nno\nno\nyes\n\n", "no\nno\nno\nno\nyes\n"})
+    void invalidInputForNewReportsReturnsFailure(String laterInput) throws SQLException {
+        try (Connection connection = DatabaseConnectionManager.connect()) {
+            java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+            assertEquals(2, Main.runReports(connection,
+                    new java.util.Scanner(BASE_INPUT + laterInput),
+                    new java.io.PrintStream(bytes), false));
+            assertTrue(bytes.toString().contains("Please enter"));
+        }
     }
 
     @Test
