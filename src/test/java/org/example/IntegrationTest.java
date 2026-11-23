@@ -135,7 +135,13 @@ public class IntegrationTest {
                     new java.util.Scanner("Antarctica\nJapan\nMoscow (City)\nWestern Europe\n2\nno\nno\n"
                             + DECLINE_LATER_REPORTS),
                     new java.io.PrintStream(bytes), false));
-            assertTrue(bytes.toString().contains("No cities found for continent: Antarctica"));
+            String output = bytes.toString().replace("\r\n", "\n");
+            assertTrue(output.contains("""
+                    Population of Antarctica: 0
+                    Living in cities: 0 (0.00%)
+                    Living outside cities: 0 (0.00%)
+                    No cities found for continent: Antarctica
+                    """));
         }
     }
 
