@@ -10,6 +10,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Runs the world population and city reports
@@ -74,8 +75,7 @@ public class Main {
             output.println("Please enter a continent.");
             return 2;
         }
-        output.printf("Population of %s: %d%n",
-                continent, getContinentPopulation(connection, continent));
+        printPopulationBreakdown(connection, "Continent", continent, output);
         List<City> cities = getCitiesByContinent(connection, continent);
         if (cities.isEmpty()) {
             output.println("No cities found for continent: " + continent);
@@ -188,9 +188,9 @@ public class Main {
             output.println("Please enter a number greater than zero.");
             return 2;
         }
-
         printTopCountriesByContinent(connection, continent, n);
         printTopCountriesWorldwide(connection, n);
+        printPopulationBreakdown(connection, "Region", region, output);
         printTopCountriesByRegion(connection, region, n, output);
         double[] chinese = getChineseSpeakers(connection);
         double[] english = getEnglishSpeakers(connection);
@@ -199,6 +199,47 @@ public class Main {
         output.printf("English: %.0f speakers | %.2f%% of world population%n",
                 english[0], english[1]);
         return 0;
+    }
+
+
+    private static void printPopulationBreakdown(
+            Connection connection, String countryColumn, String area, PrintStream output)
+            throws SQLException {
+        // Sum city populations by country before joining so each country's total
+        // is counted once, even if it has many cities or none in the dataset.
+        String sql = """
+                SELECT COALESCE(SUM(country.Population), 0) AS TotalPopulation,
+                       COALESCE(SUM(city_totals.Population), 0) AS CityPopulation
+                FROM country
+                LEFT JOIN (
+                    SELECT CountryCode, SUM(Population) AS Population
+                    FROM city
+                    GROUP BY CountryCode
+                ) AS city_totals ON city_totals.CountryCode = country.Code
+                WHERE country.%s = ?
+                """.formatted(countryColumn);
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, area);
+            try (ResultSet results = statement.executeQuery()) {
+                results.next(); // An aggregate without GROUP BY always returns one row.
+                long totalPopulation = results.getLong("TotalPopulation");
+                long cityPopulation = results.getLong("CityPopulation");
+                long nonCityPopulation = totalPopulation - cityPopulation;
+                double cityPercentage = 0;
+                double nonCityPercentage = 0;
+                if (totalPopulation > 0) {
+                    cityPercentage = 100.0 * cityPopulation / totalPopulation;
+                    nonCityPercentage = 100.0 * nonCityPopulation / totalPopulation;
+                }
+
+                output.printf("Population of %s: %d%n", area, totalPopulation);
+                output.printf(Locale.ROOT, "Living in cities: %d (%.2f%%)%n",
+                        cityPopulation, cityPercentage);
+                output.printf(Locale.ROOT, "Living outside cities: %d (%.2f%%)%n",
+                        nonCityPopulation, nonCityPercentage);
+            }
+        }
     }
 
     /**
@@ -210,7 +251,10 @@ public class Main {
     public static void printAllCitiesWorldwide(Connection connection,
                                                java.io.PrintStream output)
             throws SQLException {
-        List<City> cities = getAllCitiesWorldwide(connection);
+        printWorldwideCityReport(getAllCitiesWorldwide(connection), output);
+    }
+
+    static void printWorldwideCityReport(List<City> cities, PrintStream output) {
         output.println("All cities worldwide");
         output.println("Name | Country | District | Population");
         if (cities.isEmpty()) {

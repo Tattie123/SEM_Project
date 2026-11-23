@@ -126,7 +126,13 @@ public class IntegrationTest {
             assertEquals(0, Main.runReports(connection,
                     new java.util.Scanner("Antarctica\nJapann\nMoscow (City)\nWestern Europe\n2\n"),
                     new java.io.PrintStream(bytes), false));
-            assertTrue(bytes.toString().contains("No cities found for continent: Antarctica"));
+            String output = bytes.toString().replace("\r\n", "\n");
+            assertTrue(output.contains("""
+                    Population of Antarctica: 0
+                    Living in cities: 0 (0.00%)
+                    Living outside cities: 0 (0.00%)
+                    No cities found for continent: Antarctica
+                    """));
         }
     }
 
@@ -227,10 +233,20 @@ public class IntegrationTest {
             int status = Main.runReports(connection,
                     new java.util.Scanner("Europe\nJapan\nMoscow (City)\nWestern Europe\n2\n"),
                     new java.io.PrintStream(bytes), false);
-            String output = bytes.toString(java.nio.charset.StandardCharsets.UTF_8);
+            String output = bytes.toString(java.nio.charset.StandardCharsets.UTF_8)
+                    .replace("\r\n", "\n");
             assertEquals(0, status);
             assertTrue(output.contains("World population: 6078749450"));
-            assertTrue(output.contains("Population of Europe: 730074600"));
+            assertTrue(output.contains("""
+                    Population of Europe: 730074600
+                    Living in cities: 241942813 (33.14%)
+                    Living outside cities: 488131787 (66.86%)
+                    """));
+            assertTrue(output.contains("""
+                    Population of Western Europe: 183247600
+                    Living in cities: 45683298 (24.93%)
+                    Living outside cities: 137564302 (75.07%)
+                    """));
             String continentReport = output.substring(output.indexOf("Cities in Europe"),
                     output.indexOf("Enter a region:"));
             assertTrue(continentReport.contains("Name | Country | District | Population"));
@@ -296,20 +312,11 @@ public class IntegrationTest {
         }
     }
     @Test
-    void emptyCityDataDisplaysAnExplicitMessage() throws SQLException {
-        try (Connection connection = DatabaseConnectionManager.connect();
-             Statement statement = connection.createStatement()) {
-            // Connection uses the empty temporary table instead of the real city table
-            statement.execute("""
-                    CREATE TEMPORARY TABLE city (
-                        ID INT, Name VARCHAR(100), CountryCode CHAR(3),
-                        District VARCHAR(100), Population INT)
-                    """);
-            java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
-            Main.printAllCitiesWorldwide(connection, new java.io.PrintStream(bytes));
-            assertTrue(bytes.toString().contains("No cities found."));
-            assertEquals(3, bytes.toString().lines().count());
-        }
+    void emptyCityDataDisplaysAnExplicitMessage() {
+        java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+        Main.printWorldwideCityReport(List.of(), new java.io.PrintStream(bytes));
+        assertEquals(List.of("All cities worldwide", "Name | Country | District | Population",
+                "No cities found."), bytes.toString().lines().toList());
     }
 
     @Test
