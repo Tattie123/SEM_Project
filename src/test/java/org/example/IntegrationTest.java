@@ -399,7 +399,7 @@ public class IntegrationTest {
     @Test
     void emptyCityDataDisplaysAnExplicitMessage() {
         java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
-        Main.printCitiesWorldwide(List.of(), new java.io.PrintStream(bytes));
+        Main.printWorldwideCityReport(List.of(), new java.io.PrintStream(bytes));
 
         String output = bytes.toString(java.nio.charset.StandardCharsets.UTF_8);
         assertTrue(output.contains("No cities found."));
