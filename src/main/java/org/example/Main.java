@@ -1,6 +1,8 @@
 package org.example;
 
 import org.example.db.DatabaseConnectionManager;
+
+import java.io.PrintStream;
 import java.util.Scanner;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -8,63 +10,706 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
+/** Runs the population reports against the configured World database. */
 public class Main {
+
+    /**
+     * Checks args and connects to the database
+     * <br>
+     * Starts {@link #runReports(Connection, Scanner, PrintStream, boolean)}
+     * @param args optional --all-cities flag
+     */
     public static void main(String[] args) {
+        if (args.length > 1 || (args.length == 1 && !args[0].equals("--all-cities"))) {
+            System.err.println("Usage: java -jar app.jar [--all-cities]");
+            System.exit(2);
+        }
+        // Keep one connection open while the interactive reports are generated.
         try (Connection connection = DatabaseConnectionManager.connect()) {
-            System.out.printf("World population: %d%n", getWorldPopulation(connection));
-
-            Scanner scanner = new Scanner(System.in);
-
-            System.out.print("Enter a continent: ");
-            String continent = scanner.nextLine().trim();
-            System.out.printf("Population of %s: %d%n",
-                    continent, getContinentPopulation(connection, continent));
-            // Get and display cities in the selected continent
-            List<City> cities = getCitiesByContinent(connection, continent);
-
-            if (cities.isEmpty()) {
-                System.out.println("No cities found for continent: " + continent); }
-            else {
-                System.out.println("Cities in " + continent + " (population descending):");
-                System.out.printf("%-25s %-30s %-20s %12s%n", "City", "Country", "District", "Population");
-
-                for (City city : cities) {
-                    System.out.printf("%-25s %-30s %-20s %,12d%n", city.name, city.country, city.district, city.population); }
+            int status = runReports(connection, new Scanner(System.in), System.out,
+                    args.length == 1);
+            if (status != 0) {
+                System.exit(status);
             }
-
-            // Ask the user for the region and number of countries.
-            System.out.print("Enter a region: ");
-            String region = scanner.nextLine().trim();
-
-            System.out.print("Enter the number of countries: ");
-
-            if (!scanner.hasNextInt()) {
-                System.out.println("Please enter a whole number.");
-                return;
-            }
-
-            int n = scanner.nextInt();
-
-            printTopCountriesByRegion(connection, region, n);
-            double[] chinese = getChineseSpeakers(connection);
-            double[] english = getEnglishSpeakers(connection);
-
-            System.out.printf(
-                    "Chinese: %.0f speakers | %.2f%% of world population%n",
-                    chinese[0], chinese[1]);
-
-            System.out.printf(
-                    "English: %.0f speakers | %.2f%% of world population%n",
-                    english[0], english[1]);
         } catch (SQLException e) {
-            e.printStackTrace();
+            System.err.println("Unable to run reports: " + e.getMessage());
+            System.exit(1);
         }
     }
 
+    /**
+     * Prints reports using the user's choices
+     * <br>
+     * Stops after the city report when citiesOnly is true
+     * @param connection open database connection
+     * @param scanner user input
+     * @param output report output
+     * @param citiesOnly whether to print only the worldwide city report
+     * @return 0 on success, or 2 for missing or invalid input
+     * @throws SQLException if a database query fails
+     */
+    public static int runReports(Connection connection, Scanner scanner,
+                                 java.io.PrintStream output, boolean citiesOnly)
+            throws SQLException {
+        printAllCitiesWorldwide(connection, output);
+        if (citiesOnly) {
+            return 0;
+        }
+        output.printf("World population: %d%n", getWorldPopulation(connection));
+        // All countries worldwide
+        printAllCountriesWorldwide(connection);
+        // All countries in Europe
+        printAllCountriesByContinent(connection, "Europe");
+        // all countries in Western Europe
+        printAllCountriesByRegion(connection, "Western Europe");
+        // Read the continent report selection.
+        output.print("Enter a continent: ");
+        if (!scanner.hasNextLine()) {
+            output.println("Please enter a continent.");
+            return 2;
+        }
+        String continent = scanner.nextLine().trim();
+        if (continent.isEmpty()) {
+            output.println("Please enter a continent.");
+            return 2;
+        }
+        printPopulationBreakdown(connection, "Continent", continent, output);
+        List<City> cities = getCitiesByContinent(connection, continent);
+        if (cities.isEmpty()) {
+            output.println("No cities found for continent: " + continent);
+        } else {
+            output.println("Cities in " + continent + " (population descending):");
+            output.println("Name | Country | District | Population");
+            for (City city : cities) {
+                output.printf("%s | %s | %s | %d%n",
+                        city.name, city.country, city.district, city.population);
+            }
+        }
+
+        output.print("Enter a country: ");
+
+        if (!scanner.hasNextLine()) {
+            output.println("Please enter a country.");
+            return 2;
+        }
+
+        String countryName = scanner.nextLine().trim();
+
+        if (countryName.isEmpty()) {
+            output.println("Please enter a country.");
+            return 2;
+        }
+
+        List<City> countryCities =
+                getCitiesByCountry(connection, countryName);
+
+        if (countryCities.isEmpty()) {
+            output.println("No cities found for country: " + countryName);
+        } else {
+            output.println("Cities in " + countryName
+                    + " (population descending):");
+            output.println("Name | Country | District | Population");
+
+            for (City city : countryCities) {
+                output.printf("%s | %s | %s | %d%n",
+                        city.name, city.country,
+                        city.district, city.population);
+            }
+        }
+
+        output.print("Enter a district: ");
+
+        if (!scanner.hasNextLine()) {
+            output.println("Please enter a district.");
+            return 2;
+        }
+
+        String district = scanner.nextLine().trim();
+
+        if (district.isEmpty()) {
+            output.println("Please enter a district.");
+            return 2;
+        }
+
+        List<City> districtCities =
+                getCitiesByDistrict(connection, district);
+
+        if (districtCities.isEmpty()) {
+            output.println("No cities found for district: " + district);
+        } else {
+            output.println("Cities in district " + district
+                    + " (population descending):");
+            output.println("Name | Country | District | Population");
+
+            for (City city : districtCities) {
+                output.printf("%s | %s | %s | %d%n",
+                        city.name, city.country,
+                        city.district, city.population);
+            }
+        }
+
+        output.print("Enter a region: ");
+        if (!scanner.hasNextLine()) {
+            output.println("Please enter a region.");
+            return 2;
+        }
+        String region = scanner.nextLine().trim();
+
+        List<City> regionCities = getCitiesByRegion(connection, region);
+
+        if (regionCities.isEmpty()) {
+            System.out.println("No cities found for region: " + region);
+        } else {
+            System.out.println("Cities in " + region
+                    + " (population descending):");
+
+            System.out.printf("%-25s %-30s %-20s %12s%n",
+                    "City", "Country", "District", "Population");
+
+            for (City city : regionCities) {
+                System.out.printf("%-25s %-30s %-20s %,12d%n",
+                        city.name, city.country, city.district, city.population);
+            }
+        }
+
+        if (region.isEmpty()) {
+            output.println("Please enter a region.");
+            return 2;
+        }
+        output.print("Enter the number of countries: ");
+        if (!scanner.hasNextInt()) {
+            output.println("Please enter a whole number.");
+            return 2;
+        }
+        int n = scanner.nextInt();
+        scanner.nextLine();
+        if (n <= 0) {
+            output.println("Please enter a number greater than zero.");
+            return 2;
+        }
+        // Print the selected region's countries and worldwide language totals.
+        printTopCountriesByContinent(connection, continent, n);
+        printTopCountriesWorldwide(connection, n);
+        printPopulationBreakdown(connection, "Region", region, output);
+        printTopCountriesByRegion(connection, region, n, output);
+        double[] chinese = getChineseSpeakers(connection);
+        double[] english = getEnglishSpeakers(connection);
+        output.printf("Chinese: %.0f speakers | %.2f%% of world population%n",
+                chinese[0], chinese[1]);
+        output.printf("English: %.0f speakers | %.2f%% of world population%n",
+                english[0], english[1]);
+        output.print("Would you like to see all capital cities? (yes/no): ");
+        if (!scanner.hasNextLine()) {
+            output.println("Please enter yes or no.");
+            return 2;
+        }
+
+        //Shows all the capital cities in the world
+        String showCapitals = scanner.nextLine().trim();
+        if (showCapitals.equalsIgnoreCase("yes") || showCapitals.equalsIgnoreCase("y")) {
+            allCapitals(connection, output);
+        } else if (!showCapitals.equalsIgnoreCase("no")
+                && !showCapitals.equalsIgnoreCase("n")) {
+            output.println("Please answer yes or no!");
+            return 2;
+        }
+
+        // Shows the capitals by the continent selected
+        output.print("\n\nWould you like to see capital cities by continent? (yes/no): ");
+        if (!scanner.hasNextLine()) {
+            output.println("Please enter yes or no.");
+            return 2;
+        }
+        String showCapitalsWithContinents = scanner.nextLine().trim();
+        if (showCapitalsWithContinents.equalsIgnoreCase("yes")
+                || showCapitalsWithContinents.equalsIgnoreCase("y")) {
+            output.print("Enter a continent for the capital report: ");
+            if (!scanner.hasNextLine()) {
+                output.println("Please enter a continent.");
+                return 2;
+            }
+            String capitalContinent = scanner.nextLine().trim();
+            if (capitalContinent.isEmpty()) {
+                output.println("Please enter a continent.");
+                return 2;
+            }
+            capitalsByContinent(connection, capitalContinent, output);
+        } else if (!showCapitalsWithContinents.equalsIgnoreCase("no")
+                && !showCapitalsWithContinents.equalsIgnoreCase("n")) {
+            output.println("Please enter yes or no.");
+            return 2;
+        }
+
+        // Shows all capitals in a region
+        Boolean showRegionCapitals = askYesNo(scanner, output,
+                "\n\nWould you like to see capital cities by region? (yes/no): ");
+        if (showRegionCapitals == null) {
+            return 2;
+        }
+        if (showRegionCapitals) {
+            String capitalRegion = askLine(scanner, output,
+                    "Enter a region for the capital report: ", "a region");
+            if (capitalRegion == null) {
+                return 2;
+            }
+            printCapitals("Capital cities in region " + capitalRegion
+                            + " (population descending)",
+                    getCapitalCitiesByRegion(connection, capitalRegion),
+                    "No capitals found for region: " + capitalRegion, output);
+        }
+
+        // Shows the top N capitals worldwide
+        Boolean showTopWorldCapitals = askYesNo(scanner, output,
+                "\n\nWould you like to see the top N capital cities worldwide? (yes/no): ");
+        if (showTopWorldCapitals == null) {
+            return 2;
+        }
+        if (showTopWorldCapitals) {
+            int count = askPositiveInt(scanner, output,
+                    "Enter the number of capital cities: ");
+            if (count <= 0) {
+                return 2;
+            }
+            printCapitals("Top " + count + " capital cities worldwide",
+                    getTopCapitalCitiesWorldwide(connection, count),
+                    "No capitals found.", output);
+        }
+
+        // Shows the top N capitals in a continent
+        Boolean showTopContinentCapitals = askYesNo(scanner, output,
+                "\n\nWould you like to see the top N capital cities in a continent? (yes/no): ");
+        if (showTopContinentCapitals == null) {
+            return 2;
+        }
+        if (showTopContinentCapitals) {
+            String topContinent = askLine(scanner, output,
+                    "Enter a continent: ", "a continent");
+            if (topContinent == null) {
+                return 2;
+            }
+            int count = askPositiveInt(scanner, output,
+                    "Enter the number of capital cities: ");
+            if (count <= 0) {
+                return 2;
+            }
+            printCapitals("Top " + count + " capital cities in " + topContinent,
+                    getTopCapitalCitiesByContinent(connection, topContinent, count),
+                    "No capitals found for continent: " + topContinent, output);
+        }
+
+        // Shows the top N capitals in a region
+        Boolean showTopRegionCapitals = askYesNo(scanner, output,
+                "\n\nWould you like to see the top N capital cities in a region? (yes/no): ");
+        if (showTopRegionCapitals == null) {
+            return 2;
+        }
+        if (showTopRegionCapitals) {
+            String topRegion = askLine(scanner, output, "Enter a region: ", "a region");
+            if (topRegion == null) {
+                return 2;
+            }
+            int count = askPositiveInt(scanner, output,
+                    "Enter the number of capital cities: ");
+            if (count <= 0) {
+                return 2;
+            }
+            printCapitals("Top " + count + " capital cities in " + topRegion,
+                    getTopCapitalCitiesByRegion(connection, topRegion, count),
+                    "No capitals found for region: " + topRegion, output);
+        }
+
+        // Shows how much of a country's population lives in cities
+        Boolean showCountryPopulation = askYesNo(scanner, output,
+                "\n\nWould you like to see how much of a country's population"
+                        + " lives in cities? (yes/no): ");
+        if (showCountryPopulation == null) {
+            return 2;
+        }
+        if (showCountryPopulation) {
+            String populationCountry = askLine(scanner, output,
+                    "Enter a country: ", "a country");
+            if (populationCountry == null) {
+                return 2;
+            }
+            printCountryPopulation(
+                    getCountryPopulation(connection, populationCountry),
+                    populationCountry, output);
+        }
+        return 0;
+    }
+
+
+    private static void printPopulationBreakdown(
+            Connection connection, String countryColumn, String area, PrintStream output)
+            throws SQLException {
+        // Sum city populations by country before joining so each country's total
+        // is counted once, even if it has many cities or none in the dataset.
+        String sql = """
+                SELECT COALESCE(SUM(country.Population), 0) AS TotalPopulation,
+                       COALESCE(SUM(city_totals.Population), 0) AS CityPopulation
+                FROM country
+                LEFT JOIN (
+                    SELECT CountryCode, SUM(Population) AS Population
+                    FROM city
+                    GROUP BY CountryCode
+                ) AS city_totals ON city_totals.CountryCode = country.Code
+                WHERE country.%s = ?
+                """.formatted(countryColumn);
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, area);
+            try (ResultSet results = statement.executeQuery()) {
+                results.next(); // An aggregate without GROUP BY always returns one row.
+                long totalPopulation = results.getLong("TotalPopulation");
+                long cityPopulation = results.getLong("CityPopulation");
+                long nonCityPopulation = totalPopulation - cityPopulation;
+                double cityPercentage = 0;
+                double nonCityPercentage = 0;
+                if (totalPopulation > 0) {
+                    cityPercentage = 100.0 * cityPopulation / totalPopulation;
+                    nonCityPercentage = 100.0 * nonCityPopulation / totalPopulation;
+                }
+
+                output.printf("Population of %s: %d%n", area, totalPopulation);
+                output.printf(Locale.ROOT, "Living in cities: %d (%.2f%%)%n",
+                        cityPopulation, cityPercentage);
+                output.printf(Locale.ROOT, "Living outside cities: %d (%.2f%%)%n",
+                        nonCityPopulation, nonCityPercentage);
+            }
+        }
+    }
+
+    /**
+     * Prompts for a line of input
+     * @return the trimmed answer, or null (after printing a message) if it is missing or empty
+     */
+    static String askLine(Scanner scanner, PrintStream output, String prompt, String what) {
+        output.print(prompt);
+        if (!scanner.hasNextLine()) {
+            output.println("Please enter " + what + ".");
+            return null;
+        }
+        String answer = scanner.nextLine().trim();
+        if (answer.isEmpty()) {
+            output.println("Please enter " + what + ".");
+            return null;
+        }
+        return answer;
+    }
+
+    /**
+     * Prompts for a yes/no answer
+     * @return true for yes/y, false for no/n, or null (after printing a message) otherwise
+     */
+    static Boolean askYesNo(Scanner scanner, PrintStream output, String prompt) {
+        String answer = askLine(scanner, output, prompt, "yes or no");
+        if (answer == null) {
+            return null;
+        }
+        if (answer.equalsIgnoreCase("yes") || answer.equalsIgnoreCase("y")) {
+            return true;
+        }
+        if (answer.equalsIgnoreCase("no") || answer.equalsIgnoreCase("n")) {
+            return false;
+        }
+        output.println("Please enter yes or no.");
+        return null;
+    }
+
+    /**
+     * Prompts for a whole number greater than zero
+     * @return the number, or -1 (after printing a message) if the input is invalid
+     */
+    static int askPositiveInt(Scanner scanner, PrintStream output, String prompt) {
+        String answer = askLine(scanner, output, prompt, "a whole number");
+        if (answer == null) {
+            return -1;
+        }
+        try {
+            int value = Integer.parseInt(answer);
+            if (value > 0) {
+                return value;
+            }
+        } catch (NumberFormatException e) {
+            // handled below
+        }
+        output.println("Please enter a whole number greater than zero.");
+        return -1;
+    }
+
+    /**
+     * Prints a capital city report
+     * @param title heading for the report
+     * @param capitals capital cities to print, already sorted
+     * @param emptyMessage message shown when there are no capitals
+     * @param output report output
+     */
+    static void printCapitals(String title, List<City> capitals,
+                              String emptyMessage, PrintStream output) {
+        output.println(title);
+        output.println("Name | Country | Population");
+        if (capitals.isEmpty()) {
+            output.println(emptyMessage);
+        }
+        for (City city : capitals) {
+            output.printf("%s | %s | %d%n", city.name, city.country, city.population);
+        }
+    }
+
+    /**
+     * Prints the total, in-city and not-in-city population of a country
+     * @param population the country's figures, or null if it was not found
+     * @param requestedName the name the user entered
+     * @param output report output
+     */
+    static void printCountryPopulation(CountryPopulation population,
+                                       String requestedName, PrintStream output) {
+        if (population == null) {
+            output.println("No country found with name: " + requestedName);
+            return;
+        }
+        output.println("Population of " + population.name);
+        output.printf("Total population | %d%n", population.totalPopulation);
+        output.printf("Living in cities | %d | %.2f%%%n",
+                population.cityPopulation, population.getCityPercentage());
+        output.printf("Not living in cities | %d | %.2f%%%n",
+                population.getNonCityPopulation(), population.getNonCityPercentage());
+        if (population.getNonCityPopulation() < 0) {
+            output.println("Note: the database's city populations add up to more"
+                    + " than this country's recorded population.");
+        }
+    }
+
+    /**
+     * Gets every capital city in a region from largest to smallest population
+     * @param connection open database connection
+     * @param region region name
+     * @return matching capital cities with their country names
+     * @throws SQLException if a database query fails
+     */
+    public static List<City> getCapitalCitiesByRegion(
+            Connection connection, String region) throws SQLException {
+
+        String sql = """
+            SELECT city.Name,
+                   country.Name AS Country,
+                   city.District,
+                   city.Population
+            FROM country
+            JOIN city ON country.Capital = city.ID
+            WHERE country.Region = ?
+            ORDER BY city.Population DESC, city.ID
+            """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, region);
+            return readCities(statement);
+        }
+    }
+
+    /**
+     * Gets at most {@code n} capital cities worldwide, largest population first
+     * @param connection open database connection
+     * @param n maximum number of capital cities
+     * @return capital cities with their country names
+     * @throws IllegalArgumentException if n is zero or negative
+     * @throws SQLException if a database query fails
+     */
+    public static List<City> getTopCapitalCitiesWorldwide(
+            Connection connection, int n) throws SQLException {
+
+        if (n <= 0) {
+            throw new IllegalArgumentException("N must be greater than zero.");
+        }
+
+        String sql = """
+            SELECT city.Name,
+                   country.Name AS Country,
+                   city.District,
+                   city.Population
+            FROM country
+            JOIN city ON country.Capital = city.ID
+            ORDER BY city.Population DESC, city.ID
+            LIMIT ?
+            """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, n);
+            return readCities(statement);
+        }
+    }
+
+    /**
+     * Gets at most {@code n} capital cities in a continent, largest population first
+     * @param connection open database connection
+     * @param continent continent name
+     * @param n maximum number of capital cities
+     * @return matching capital cities with their country names
+     * @throws IllegalArgumentException if n is zero or negative
+     * @throws SQLException if a database query fails
+     */
+    public static List<City> getTopCapitalCitiesByContinent(
+            Connection connection, String continent, int n) throws SQLException {
+
+        if (n <= 0) {
+            throw new IllegalArgumentException("N must be greater than zero.");
+        }
+
+        String sql = """
+            SELECT city.Name,
+                   country.Name AS Country,
+                   city.District,
+                   city.Population
+            FROM country
+            JOIN city ON country.Capital = city.ID
+            WHERE country.Continent = ?
+            ORDER BY city.Population DESC, city.ID
+            LIMIT ?
+            """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, continent);
+            statement.setInt(2, n);
+            return readCities(statement);
+        }
+    }
+
+    /**
+     * Gets at most {@code n} capital cities in a region, largest population first
+     * @param connection open database connection
+     * @param region region name
+     * @param n maximum number of capital cities
+     * @return matching capital cities with their country names
+     * @throws IllegalArgumentException if n is zero or negative
+     * @throws SQLException if a database query fails
+     */
+    public static List<City> getTopCapitalCitiesByRegion(
+            Connection connection, String region, int n) throws SQLException {
+
+        if (n <= 0) {
+            throw new IllegalArgumentException("N must be greater than zero.");
+        }
+
+        String sql = """
+            SELECT city.Name,
+                   country.Name AS Country,
+                   city.District,
+                   city.Population
+            FROM country
+            JOIN city ON country.Capital = city.ID
+            WHERE country.Region = ?
+            ORDER BY city.Population DESC, city.ID
+            LIMIT ?
+            """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, region);
+            statement.setInt(2, n);
+            return readCities(statement);
+        }
+    }
+
+    /**
+     * Gets a country's total population and the population living in its cities
+     * @param connection open database connection
+     * @param country country name
+     * @return the country's figures, or null if no country has that name
+     * @throws SQLException if a database query fails
+     */
+    public static CountryPopulation getCountryPopulation(
+            Connection connection, String country) throws SQLException {
+
+        // LEFT JOIN keeps countries that have no cities recorded
+        String sql = """
+            SELECT country.Name,
+                   country.Population AS TotalPopulation,
+                   COALESCE(SUM(city.Population), 0) AS CityPopulation
+            FROM country
+            LEFT JOIN city ON city.CountryCode = country.Code
+            WHERE country.Name = ?
+            GROUP BY country.Code, country.Name, country.Population
+            """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, country);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    CountryPopulation result = new CountryPopulation();
+
+                    result.name = resultSet.getString("Name");
+                    result.totalPopulation = resultSet.getLong("TotalPopulation");
+                    result.cityPopulation = resultSet.getLong("CityPopulation");
+
+                    return result;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Runs a city query and maps each row to a City
+     * @param statement prepared query selecting Name, Country, District and Population
+     * @return the cities in query order
+     * @throws SQLException if the query fails
+     */
+    private static List<City> readCities(PreparedStatement statement) throws SQLException {
+        List<City> cities = new ArrayList<>();
+
+        try (ResultSet resultSet = statement.executeQuery()) {
+            while (resultSet.next()) {
+                City city = new City();
+
+                city.name = resultSet.getString("Name");
+                city.country = resultSet.getString("Country");
+                city.district = resultSet.getString("District");
+                city.population = resultSet.getInt("Population");
+
+                cities.add(city);
+            }
+        }
+
+        return cities;
+    }
+
+    /**
+     * Prints all cities from largest to smallest population
+     * @param connection open database connection
+     * @param output report output
+     * @throws SQLException if a database query fails
+     */
+    public static void printAllCitiesWorldwide(Connection connection,
+                                               java.io.PrintStream output)
+            throws SQLException {
+        printWorldwideCityReport(getAllCitiesWorldwide(connection), output);
+    }
+
+    static void printWorldwideCityReport(List<City> cities, PrintStream output) {
+        output.println("All cities worldwide");
+        output.println("Name | Country | District | Population");
+        if (cities.isEmpty()) {
+            output.println("No cities found.");
+        }
+        for (City city : cities) {
+            output.printf("%s | %s | %s | %d%n",
+                    city.name, city.country, city.district, city.population);
+        }
+    }
+
+    /**
+     * Returns the sum of the population values for all countries.
+     * @param connection open database connection
+     * @return world population, or zero if there are no countries
+     * @throws SQLException if a database query fails
+     */
     public static long getWorldPopulation(Connection connection)
             throws SQLException {
 
+        // COALESCE returns zero if the table has no population values.
         String sql = """
                 SELECT COALESCE(SUM(Population), 0) AS WorldPopulation
                 FROM country
@@ -81,6 +726,13 @@ public class Main {
         return 0L;
     }
 
+    /**
+     * Returns the population total for the selected continent.
+     * @param connection open database connection
+     * @param continent continent name
+     * @return continent population, or zero if no countries match
+     * @throws SQLException if a database query fails
+     */
     public static long getContinentPopulation(
             Connection connection, String continent) throws SQLException {
 
@@ -90,6 +742,7 @@ public class Main {
                 WHERE Continent = ?
                 """;
 
+        // Bind the user's selection rather than inserting it into the SQL text.
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, continent);
 
@@ -103,11 +756,18 @@ public class Main {
         return 0L;
     }
 
+    /**
+     * Loads every city with its country name, ordered from largest to smallest.
+     * @param connection open database connection
+     * @return cities with their country names
+     * @throws SQLException if a database query fails
+     */
     public static List<City> getAllCitiesWorldwide(Connection connection)
             throws SQLException {
 
         List<City> cities = new ArrayList<>();
 
+        // City ID keeps the order consistent when populations match.
         String sql = """
                 SELECT city.Name,
                        country.Name AS Country,
@@ -115,9 +775,10 @@ public class Main {
                        city.Population
                 FROM city
                 JOIN country ON city.CountryCode = country.Code
-                ORDER BY city.Population DESC
+                ORDER BY city.Population DESC, city.ID
                 """;
 
+        // Map each result row to a City object; try-with-resources closes JDBC objects.
         try (PreparedStatement statement = connection.prepareStatement(sql);
              ResultSet resultSet = statement.executeQuery()) {
 
@@ -136,9 +797,19 @@ public class Main {
         return cities;
     }
 
+    /**
+     * Returns at most {@code n} cities in the requested district.
+     * @param connection open database connection
+     * @param district district name
+     * @param n maximum number of cities
+     * @return matching cities from largest to smallest population
+     * @throws IllegalArgumentException if n is zero or negative
+     * @throws SQLException if a database query fails
+     */
     public static List<City> getTopCitiesByDistrict(
             Connection connection, String district, int n) throws SQLException {
 
+        // Reject invalid limits before sending a query to the database.
         if (n <= 0) {
             throw new IllegalArgumentException("N must be greater than zero.");
         }
@@ -153,10 +824,11 @@ public class Main {
                 FROM city
                 JOIN country ON city.CountryCode = country.Code
                 WHERE city.District = ?
-                ORDER BY city.Population DESC
+                ORDER BY city.Population DESC, city.ID
                 LIMIT ?
                 """;
 
+        // Both the district filter and result limit are supplied as parameters.
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, district);
             statement.setInt(2, n);
@@ -179,6 +851,13 @@ public class Main {
     }
 
 
+    /**
+     * Gets cities in a continent from largest to smallest population
+     * @param connection open database connection
+     * @param continent continent name
+     * @return matching cities with their country names
+     * @throws SQLException if a database query fails
+     */
     public static List<City> getCitiesByContinent(
             Connection connection, String continent) throws SQLException {
 
@@ -192,7 +871,7 @@ public class Main {
             FROM city
             JOIN country ON city.CountryCode = country.Code
             WHERE country.Continent = ?
-            ORDER BY city.Population DESC
+            ORDER BY city.Population DESC, city.ID
             """;
 
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
@@ -215,9 +894,124 @@ public class Main {
         return cities;
     }
 
+    public static List<City> getCitiesByCountry(
+            Connection connection, String countryName) throws SQLException {
+
+        List<City> cities = new ArrayList<>();
+
+        String sql = """
+            SELECT city.Name,
+                   country.Name AS Country,
+                   city.District,
+                   city.Population
+            FROM city
+            JOIN country ON city.CountryCode = country.Code
+            WHERE country.Name = ?
+            ORDER BY city.Population DESC
+            """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, countryName);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    City city = new City();
+                    city.name = resultSet.getString("Name");
+                    city.country = resultSet.getString("Country");
+                    city.district = resultSet.getString("District");
+                    city.population = resultSet.getInt("Population");
+                    cities.add(city);
+                }
+            }
+        }
+
+        return cities;
+    }
+
+
+    public static List<City> getCitiesByDistrict(
+            Connection connection, String district) throws SQLException {
+
+        List<City> cities = new ArrayList<>();
+
+        String sql = """
+            SELECT city.Name,
+                   country.Name AS Country,
+                   city.District,
+                   city.Population
+            FROM city
+            JOIN country ON city.CountryCode = country.Code
+            WHERE city.District = ?
+            ORDER BY city.Population DESC
+            """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, district);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    City city = new City();
+                    city.name = resultSet.getString("Name");
+                    city.country = resultSet.getString("Country");
+                    city.district = resultSet.getString("District");
+                    city.population = resultSet.getInt("Population");
+
+                    cities.add(city);
+                }
+            }
+        }
+
+        return cities;
+    }
+
+
+    public static List<City> getCitiesByRegion(
+            Connection connection, String region) throws SQLException {
+
+        List<City> cities = new ArrayList<>();
+
+        String sql = """
+            SELECT city.Name,
+                   country.Name AS Country,
+                   city.District,
+                   city.Population
+            FROM city
+            JOIN country ON city.CountryCode = country.Code
+            WHERE country.Region = ?
+            ORDER BY city.Population DESC
+            """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, region);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    City city = new City();
+
+                    city.name = resultSet.getString("Name");
+                    city.country = resultSet.getString("Country");
+                    city.district = resultSet.getString("District");
+                    city.population = resultSet.getInt("Population");
+
+                    cities.add(city);
+                }
+            }
+        }
+
+        return cities;
+    }
+
+    /**
+     * Returns estimated Chinese speakers and their percentage of world population.
+     * @param connection open database connection
+     * @return speaker count at index 0 and world percentage at index 1
+     * @throws SQLException if a database query fails
+     */
     public static double[] getChineseSpeakers(Connection connection)
             throws SQLException {
 
+        // Weight each country's population by the language's reported percentage.
+        // NULLIF avoids division by zero
         String sql = """
                 SELECT
                     COALESCE(SUM(country.Population *
@@ -245,9 +1039,17 @@ public class Main {
         return new double[]{0, 0};
     }
 
+    /**
+     * Returns estimated English speakers and their percentage of world population.
+     * @param connection open database connection
+     * @return speaker count at index 0 and world percentage at index 1
+     * @throws SQLException if a database query fails
+     */
     public static double[] getEnglishSpeakers(Connection connection)
             throws SQLException {
 
+        // The subquery denominator is the population of all countries, not just
+        // countries where English is spoken.
         String sql = """
                 SELECT
                     COALESCE(SUM(country.Population *
@@ -276,17 +1078,39 @@ public class Main {
         return new double[]{0, 0};
     }
 
-    // To show the top N countries in a selected region
+    /**
+     * Prints up to {@code n} countries in a region, ordered by population.
+     * @param connection open database connection
+     * @param region region name
+     * @param n maximum number of countries
+     * @throws SQLException if a database query fails
+     */
     public static void printTopCountriesByRegion(
             Connection connection, String region, int n) throws SQLException {
 
-        //stop if the number is 0 or negative
+        printTopCountriesByRegion(connection, region, n, System.out);
+    }
+
+    /**
+     * Prints up to {@code n} countries in a region, ordered by population.
+     * <br>
+     * Prints a message if n is invalid or no countries match
+     * @param connection open database connection
+     * @param region region name
+     * @param n maximum number of countries
+     * @param output report output
+     * @throws SQLException if a database query fails
+     */
+    public static void printTopCountriesByRegion(
+            Connection connection, String region, int n, java.io.PrintStream output)
+            throws SQLException {
+        // A non-positive limit cannot produce a meaningful top-N report.
         if (n <= 0) {
-            System.out.println("enter a number greater than 0: ");
+            output.println("enter a number greater than 0: ");
             return;
         }
 
-        //retrieves the information from the database, ordered by population
+        // LEFT JOIN keeps countries in the report even when no capital is listed.
         String sql = """
                 SELECT country.Code, country.Name, country.Continent,
                             country.region, country.population,
@@ -298,23 +1122,21 @@ public class Main {
                         LIMIT ?
                 """;
                 try(PreparedStatement statement = connection.prepareStatement(sql)) {
-                    //user choice
+                    // Bind the chosen region and maximum number of rows.
                     statement.setString(1, region);
                     statement.setInt(2, n);
 
-                    //run query / read the results
                     try(ResultSet results = statement.executeQuery()) {
-                        System.out.println("Top " + n + " countries in " + region);
-                        System.out.println("Code | Name | Continent | Region | Population | Capital");
+                        output.println("Top " + n + " countries in " + region);
+                        output.println("Code | Name | Continent | Region | Population | Capital");
 
-                        //ensures query contains a country
+                        // Track whether the query returned a matching country.
                         boolean found = false;
 
-                        //row for each country
                         while (results.next()) {
                             found = true;
 
-                            System.out.println(
+                            output.println(
                                     results.getString("Code") + " | " +
                                     results.getString("Name") + " | " +
                                     results.getString("Continent") + " | " +
@@ -323,12 +1145,271 @@ public class Main {
                                     results.getString("Capital"));
                         }
 
-                        //error message if no countries match
+                        // Give a clear message for a region with no matching rows.
                         if (!found) {
-                            System.out.println("no countries found for this region");
+                            output.println("no countries found for this region");
                         }
 
                     }
                 }
             }
+    public static void allCapitals(Connection connection, PrintStream output)
+            throws SQLException {
+        String sql = """
+                SELECT country.Name AS Country, city.Name AS Capital
+                FROM country
+                JOIN city ON country.Capital = city.ID
+                ORDER BY city.Population DESC, country.Name, country.Code;
+                """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql);
+             ResultSet results = statement.executeQuery()) {
+            output.println("Capital cities worldwide");
+            output.println("Country | Capital");
+
+            boolean found = false;
+            while (results.next()) {
+                found = true;
+                String capital = results.getString("Capital");
+                output.printf("%s | %s%n", results.getString("Country"),
+                        capital == null ? "No capital recorded" : capital);
+            }
+            if (!found) {
+                output.println("No countries found.");
+            }
+        }
+    }
+
+    public static void capitalsByContinent(Connection connection, String continent,
+                                           PrintStream output) throws SQLException {
+        String sql = """
+                SELECT country.Name AS Country,
+                       city.Name AS Capital,
+                       city.Population
+                FROM country
+                JOIN city ON country.Capital = city.ID
+                WHERE country.Continent = ?
+                ORDER BY city.Population DESC, country.Name, country.Code
+                """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, continent);
+            try (ResultSet results = statement.executeQuery()) {
+                output.println("Capital cities in " + continent + " (population descending)");
+                output.println("Country | Capital | Population");
+
+                boolean found = false;
+                while (results.next()) {
+                    found = true;
+                    output.printf("%s | %s | %d%n",
+                            results.getString("Country"),
+                            results.getString("Capital"),
+                            results.getInt("Population"));
+                }
+                if (!found) {
+                    output.println("No capitals found for continent: " + continent);
+                }
+            }
+        }
+    }
+
+    // Displays the top N countries in a continent
+    public static void printTopCountriesByContinent(
+            Connection connection, String continent, int n)
+            throws SQLException {
+
+        if (n <= 0) {
+            System.out.println("enter a number greater than 0");
+            return;
+        }
+
+        String sql = """
+                SELECT country.Code, country.Name, country.Continent,
+                       country.Region, country.Population,
+                       city.Name AS Capital
+                FROM country
+                LEFT JOIN city ON country.Capital = city.ID
+                WHERE country.Continent = ?
+                ORDER BY country.Population DESC, country.Code
+                LIMIT ?
+                """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setString(1, continent);
+            statement.setInt(2, n);
+
+            try(ResultSet results = statement.executeQuery()) {
+
+                System.out.println("Top " + n + " countries in" + continent);
+                System.out.println("Code | Name | Continent | Region | Population | Capital");
+
+                while (results.next()) {
+                    System.out.println(
+                            results.getString("Code") + " | " +
+                            results.getString("name") + " | " +
+                            results.getString("Continent") + " | " +
+                            results.getString("Region") + " | " +
+                            results.getString("Population") + " | " +
+                            results.getString("Capital"));
+                }
+            }
+        }
+    }
+
+    // Displays the top N countries in the world
+    public static void printTopCountriesWorldwide(
+            Connection connection, int n) throws SQLException {
+
+        String sql = """
+            SELECT country.Code, country.Name, country.Continent,
+                   country.Region, country.Population,
+                   city.Name AS Capital
+            FROM country
+            LEFT JOIN city ON country.Capital = city.ID
+            ORDER BY country.Population DESC, country.Code
+            LIMIT ?
+            """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setInt(1, n);
+
+            try (ResultSet results = statement.executeQuery()) {
+
+                System.out.println("Top " + n + " countries in the world");
+                System.out.println("Code | Name | Continent | Region | Population | Capital");
+
+                while (results.next()) {
+                    System.out.println(
+                            results.getString("Code") + " | " +
+                                    results.getString("Name") + " | " +
+                                    results.getString("Continent") + " | " +
+                                    results.getString("Region") + " | " +
+                                    results.getString("Population") + " | " +
+                                    results.getString("Capital"));
+                }
+            }
+        }
+    }
+
+
+    // US05 - Display all countries worldwide
+    public static void printAllCountriesWorldwide(Connection connection)
+            throws SQLException {
+
+        // Get all countries, largest population first
+        String sql = """
+                SELECT country.Code, country.Name, country.Continent,
+                       country.Region, country.Population,
+                       city.Name AS Capital
+                FROM country
+                LEFT JOIN city ON country.Capital = city.ID
+                ORDER BY country.Population DESC
+                """;
+
+        // Run the SQL query
+        try (PreparedStatement statement = connection.prepareStatement(sql);
+             ResultSet results = statement.executeQuery()) {
+
+            // Print the report heading
+            System.out.println("All Countries Worldwide");
+            System.out.println("Code | Name | Continent | Region | Population | Capital");
+
+            // Print each country
+            while (results.next()) {
+                System.out.println(
+                        results.getString("Code") + " | " +
+                                results.getString("Name") + " | " +
+                                results.getString("Continent") + " | " +
+                                results.getString("Region") + " | " +
+                                results.getLong("Population") + " | " +
+                                results.getString("Capital"));
+            }
+        }
+    }
+
+
+    // US06 - Display all countries in a continent
+    public static void printAllCountriesByContinent(
+            Connection connection, String continent) throws SQLException {
+
+        // Get countries from the selected continent
+        String sql = """
+                SELECT country.Code, country.Name, country.Continent,
+                       country.Region, country.Population,
+                       city.Name AS Capital
+                FROM country
+                LEFT JOIN city ON country.Capital = city.ID
+                WHERE country.Continent = ?
+                ORDER BY country.Population DESC
+                """;
+
+        // Run the SQL query
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            // Set the continent
+            statement.setString(1, continent);
+
+            try (ResultSet results = statement.executeQuery()) {
+
+                // Print the report heading
+                System.out.println("Countries in " + continent);
+                System.out.println("Code | Name | Continent | Region | Population | Capital");
+
+                // Print each country
+                while (results.next()) {
+                    System.out.println(
+                            results.getString("Code") + " | " +
+                                    results.getString("Name") + " | " +
+                                    results.getString("Continent") + " | " +
+                                    results.getString("Region") + " | " +
+                                    results.getLong("Population") + " | " +
+                                    results.getString("Capital"));
+                }
+            }
+        }
+    }
+
+
+    // US07 - Display all countries in a region
+    public static void printAllCountriesByRegion(
+            Connection connection, String region) throws SQLException {
+
+        // Get countries from the selected region
+        String sql = """
+                SELECT country.Code, country.Name, country.Continent,
+                       country.Region, country.Population,
+                       city.Name AS Capital
+                FROM country
+                LEFT JOIN city ON country.Capital = city.ID
+                WHERE country.Region = ?
+                ORDER BY country.Population DESC
+                """;
+
+        // Run the SQL query
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            // Set the region
+            statement.setString(1, region);
+
+            try (ResultSet results = statement.executeQuery()) {
+
+                // Print the report heading
+                System.out.println("Countries in " + region);
+                System.out.println("Code | Name | Continent | Region | Population | Capital");
+
+                // Print each country
+                while (results.next()) {
+                    System.out.println(
+                            results.getString("Code") + " | " +
+                                    results.getString("Name") + " | " +
+                                    results.getString("Continent") + " | " +
+                                    results.getString("Region") + " | " +
+                                    results.getLong("Population") + " | " +
+                                    results.getString("Capital"));
+                }
+            }
+        }
+    }
 }
